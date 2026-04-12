@@ -15,7 +15,7 @@ def check_password():
             st.info("Bienvenido a Control Laboral CMSG. Favor ingrese su clave.")
             password = st.text_input("Contraseña:", type="password")
             if st.button("Ingresar"):
-                if password == "CMSG2026":
+                if password == "CMSG2026": # <--- CLAVE
                     st.session_state["password_correct"] = True
                     st.rerun()
                 else:
@@ -26,7 +26,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# Ocultar menús
+# Ocultar menús nativos
 st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 # IDs de Google Sheets
@@ -36,10 +36,14 @@ ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
 @st.cache_data(ttl=60)
 def cargar_datos(sheet_id, nombre_pestana):
-    url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
-    return pd.read_csv(url)
+    try:
+        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
+        df = pd.read_csv(url)
+        return df if not df.empty else pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
-# --- MENÚ LATERAL ---
+# --- MENÚ LATERAL GLOBAL ---
 with st.sidebar:
     st.image("https://cysasociados.cl/wp-content/uploads/2022/05/logo-cys.png", width=150)
     st.header("Configuración")
@@ -50,97 +54,106 @@ with st.sidebar:
 
 tab1, tab2, tab3 = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores"])
 
-# --- PESTAÑA 1: CUMPLIMIENTO (LÓGICA FILTRADA) ---
+# --- PESTAÑA 1: CUMPLIMIENTO ---
 with tab1:
-    try:
-        df_av = cargar_datos(ID_AVANCE, anio_global)
-        mapa_estados = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
-        colores_mapa = {"Carga Doc.":"#FF8C00", "En Revision":"#1E90FF", "Observado":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
-        
-        meses_list = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-        cols_activos = [c for c in meses_list if c in df_av.columns]
-        
-        with st.sidebar:
+    df_av = cargar_datos(ID_AVANCE, anio_global)
+    
+    if df_av.empty:
+        st.warning(f"⚠️ No se encontraron datos para el año {anio_global}.")
+    else:
+        try:
+            mapa_estados = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
+            colores_mapa = {"Carga Doc.":"#FF8C00", "En Revision":"#1E90FF", "Observado":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
+            
+            meses_list = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+            cols_activos = [c for c in meses_list if c in df_av.columns]
+            
+            with st.sidebar:
+                st.divider()
+                mes_sel = st.selectbox("Mes de Análisis:", ["AÑO COMPLETO"] + cols_activos)
+
+            periodo_txt = f"{anio_global}" if mes_sel == "AÑO COMPLETO" else f"{mes_sel.upper()} {anio_global}"
+            cols_f = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
+            datos_periodo = df_av[cols_f]
+
+            # --- MATEMÁTICA DE CUMPLIMIENTO (EXCLUYENDO 9) ---
+            mask_gestion_real = datos_periodo.isin([1, 2, 3, 4, 5])
+            total_casos_reales = mask_gestion_real.sum().sum()
+            total_cumple = (datos_periodo == 5).sum().sum()
+            porc_cumplimiento = (total_cumple / total_casos_reales * 100) if total_casos_reales > 0 else 0
+
+            st.header(f"Gestión de Cumplimiento - {periodo_txt}")
+            
+            # KPIs Principales
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Empresas Totales", len(df_av))
+            k2.metric("% Cumplimiento Real", f"{porc_cumplimiento:.1f}%")
+            
+            tiene_fallo = datos_periodo.isin([1, 2, 3, 4]).any(axis=1)
+            tiene_exito = (datos_periodo == 5).any(axis=1)
+            al_dia = (tiene_exito & ~tiene_fallo).sum()
+            k3.metric("Empresas al Día", al_dia)
+
             st.divider()
-            mes_sel = st.selectbox("Mes de Análisis:", ["AÑO COMPLETO"] + cols_activos)
+            
+            # Indicadores por Estado
+            st.subheader("📊 Conteo de Estados en el Periodo")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("✅ Cumple", (datos_periodo == 5).sum().sum())
+            c2.metric("🔵 En Revisión", (datos_periodo == 2).sum().sum())
+            c3.metric("🟠 Carga Doc.", (datos_periodo == 1).sum().sum())
+            c4.metric("🟡 Observado", (datos_periodo == 3).sum().sum())
+            
+            c5, c6, c7, _ = st.columns(4)
+            c5.metric("🔴 No Cumple", (datos_periodo == 4).sum().sum())
+            c6.metric("⚪ Sin Info", (datos_periodo == 8).sum().sum())
+            c7.metric("🟤 No Corresp.", (datos_periodo == 9).sum().sum())
 
-        periodo_txt = f"{anio_global}" if mes_sel == "AÑO COMPLETO" else f"{mes_sel.upper()} {anio_global}"
-        cols_f = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
-        datos_periodo = df_av[cols_f]
+            st.divider()
+            
+            # Evolución
+            st.subheader("📈 Evolución Mensual del Grupo")
+            resumen_evo = []
+            for m in cols_activos:
+                counts = df_av[m].value_counts()
+                for cod, cant in counts.items():
+                    resumen_evo.append({'Mes': m, 'Estado': mapa_estados.get(int(cod), "Otro"), 'Cant': cant})
+            
+            if resumen_evo:
+                st.plotly_chart(px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', color_discrete_map=colores_mapa, barmode='stack'), use_container_width=True)
 
-        # --- CÁLCULO DE % EXCLUYENDO 8 Y 9 ---
-        # Solo consideramos celdas con valores del 1 al 5 (estados de gestión real)
-        mask_gestion_real = datos_periodo.isin([1, 2, 3, 4, 5])
-        total_casos_reales = mask_gestion_real.sum().sum()
-        total_cumple = (datos_periodo == 5).sum().sum()
-        
-        porc_cumplimiento = (total_cumple / total_casos_reales * 100) if total_casos_reales > 0 else 0
+            st.divider()
+            # --- ZOOM POR EMPRESA (AJUSTE DE DISEÑO) ---
+            st.subheader("🎯 Detalle Específico por Empresa")
+            emp_sel = st.selectbox("Seleccione una empresa:", ["SELECCIONAR..."] + sorted(list(df_av["Empresa"].unique())))
 
-        # Empresas al día (No tiene 1,2,3,4 y tiene al menos un 5 en el periodo)
-        tiene_fallo = datos_periodo.isin([1, 2, 3, 4]).any(axis=1)
-        tiene_exito = (datos_periodo == 5).any(axis=1)
-        al_dia = (tiene_exito & ~tiene_fallo).sum()
-
-        st.header(f"Gestión de Cumplimiento - {periodo_txt}")
-        
-        # KPIs Principales
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Empresas Totales", len(df_av))
-        k2.metric("% Cumplimiento Real", f"{porc_cumplimiento:.1f}%", help="Calculado solo sobre meses con gestión activa (Excluye 'No Corresponde' y 'Sin Info')")
-        k3.metric("Empresas al Día", al_dia)
-
-        st.divider()
-        
-        # Conteo por Estados
-        st.subheader("📊 Conteo de Estados en el Periodo")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("✅ Cumple", (datos_periodo == 5).sum().sum())
-        c2.metric("🔵 En Revisión", (datos_periodo == 2).sum().sum())
-        c3.metric("🟠 Carga Doc.", (datos_periodo == 1).sum().sum())
-        c4.metric("🟡 Observado", (datos_periodo == 3).sum().sum())
-        
-        c5, c6, c7, _ = st.columns(4)
-        c5.metric("🔴 No Cumple", (datos_periodo == 4).sum().sum())
-        c6.metric("⚪ Sin Info", (datos_periodo == 8).sum().sum())
-        c7.metric("🟤 No Corresp.", (datos_periodo == 9).sum().sum())
-
-        st.divider()
-        
-        # Evolución
-        st.subheader("📈 Evolución Mensual")
-        resumen_evo = []
-        for m in cols_activos:
-            counts = df_av[m].value_counts()
-            for cod, cant in counts.items():
-                resumen_evo.append({'Mes': m, 'Estado': mapa_estados.get(int(cod), "Otro"), 'Cant': cant})
-        st.plotly_chart(px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', color_discrete_map=colores_mapa, barmode='stack'), use_container_width=True)
-
-        st.divider()
-        # Zoom por Empresa
-        st.subheader("🎯 Detalle Individual")
-        emp_sel = st.selectbox("Seleccione Empresa:", ["SELECCIONAR..."] + sorted(list(df_av["Empresa"].unique())))
-
-        if emp_sel != "SELECCIONAR...":
-            row_emp = df_av[df_av["Empresa"] == emp_sel][cols_f].iloc[0]
-            df_det = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_estados.get(int(c), "Otro")} for m, c in row_emp.items()])
-            d1, d2 = st.columns([1, 2])
-            with d1:
-                st.plotly_chart(px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa), use_container_width=True)
-            with d2:
+            if emp_sel != "SELECCIONAR...":
+                row_emp = df_av[df_av["Empresa"] == emp_sel][cols_f].iloc[0]
+                df_det = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_estados.get(int(c), "Otro")} for m, c in row_emp.items()])
+                
+                # Gráfico arriba
+                fig_p = px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa, title=f"Distribución: {emp_sel}")
+                fig_p.update_traces(textinfo='percent')
+                st.plotly_chart(fig_p, use_container_width=True)
+                
+                # Tabla abajo
+                st.markdown(f"**Detalle mensual de estados:**")
                 st.table(df_det.set_index('Mes').T)
 
-    except Exception as e: st.error(f"Error: {e}")
+        except Exception as e:
+            st.error(f"Error procesando pestaña 1: {e}")
 
 # --- PESTAÑA 2: EMPRESAS ---
 with tab2:
     st.header("Base de Datos Empresas")
-    try: st.dataframe(cargar_datos(ID_EMPRESAS, "Hoja 1"), use_container_width=True)
-    except: st.warning("No se encontró la hoja de empresas.")
+    df_e = cargar_datos(ID_EMPRESAS, "Hoja 1")
+    if not df_e.empty: st.dataframe(df_e, use_container_width=True)
+    else: st.warning("No hay datos de empresas.")
 
 # --- PESTAÑA 3: COLABORADORES (BLOQUEO 2025) ---
 with tab3:
     if anio_global == "2025":
-        st.warning("⚠️ Sin datos de Masa Laboral para 2025.")
+        st.warning("⚠️ Información de Masa de Trabajadores disponible solo desde 2026.")
     else:
         st.header(f"Análisis de Dotación - {anio_global}")
         meses_abrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
@@ -151,31 +164,40 @@ with tab3:
 
         try:
             if mes_colab == "AÑO COMPLETO":
-                list_df = [cargar_datos(ID_COLABORADORES, f"{m}{anio_corto}") for m in meses_abrev if True] # Simplificado
-                df_staff = pd.concat(list_df, ignore_index=True).drop_duplicates(subset=['Rut Trabajador'])
+                list_df = []
+                for m in meses_abrev:
+                    temp = cargar_datos(ID_COLABORADORES, f"{m}{anio_corto}")
+                    if not temp.empty: list_df.append(temp)
+                df_staff = pd.concat(list_df, ignore_index=True).drop_duplicates(subset=['Rut Trabajador']) if list_df else pd.DataFrame()
             else:
                 df_staff = cargar_datos(ID_COLABORADORES, f"{mes_colab}{anio_corto}")
 
-            df_staff.columns = df_staff.columns.str.strip()
-            # Filtro Empresa Tab 3
-            e_list = sorted(df_staff['Razón Social'].unique())
-            e_sel = st.multiselect("Filtrar EECC:", e_list, default=e_list)
-            df_f = df_staff[df_staff['Razón Social'].isin(e_sel)]
+            if df_staff.empty:
+                st.info(f"No hay datos para {mes_colab}{anio_corto}.")
+            else:
+                df_staff.columns = df_staff.columns.str.strip()
+                e_list = sorted(df_staff['Razón Social'].unique())
+                e_sel = st.multiselect("Filtrar EECC:", e_list, default=e_list)
+                df_f = df_staff[df_staff['Razón Social'].isin(e_sel)]
 
-            if not df_f.empty:
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("Dotación", len(df_f))
-                fem = len(df_f[df_f['Genero'].str.contains('Femenino', case=False, na=False)])
-                m2.metric("% Fem", f"{(fem/len(df_f)*100):.1f}%")
-                ext = len(df_f[~df_f['Nacionalidad'].str.contains('Chile', case=False, na=False)])
-                m3.metric("Extranjeros", ext)
-                hhe = pd.to_numeric(df_f['Total Horas Extra'], errors='coerce').sum() if 'Total Horas Extra' in df_f.columns else 0
-                m4.metric("HH.EE", f"{hhe:,.0f}")
-                
-                g1, g2 = st.columns(2)
-                with g1: st.plotly_chart(px.pie(df_f, names='Genero', hole=0.4, title="Género"), use_container_width=True)
-                with g2: st.plotly_chart(px.bar(df_f['Tipo Contrato'].value_counts().reset_index(), x='Tipo Contrato', y='count', title="Contratos"), use_container_width=True)
-        except: st.info("Seleccione un mes con datos.")
+                if not df_f.empty:
+                    m1, m2, m3, m4 = st.columns(4)
+                    tot = len(df_f)
+                    m1.metric("Dotación", tot)
+                    fem = len(df_f[df_f['Genero'].str.contains('Femenino', case=False, na=False)])
+                    m2.metric("% Fem", f"{(fem/tot*100):.1f}%")
+                    ext = len(df_f[~df_f['Nacionalidad'].str.contains('Chile', case=False, na=False)])
+                    m3.metric("Extranjeros", ext)
+                    hhe = pd.to_numeric(df_f['Total Horas Extra'], errors='coerce').sum() if 'Total Horas Extra' in df_f.columns else 0
+                    m4.metric("HH.EE", f"{hhe:,.0f}")
+                    
+                    g1, g2 = st.columns(2)
+                    with g1: st.plotly_chart(px.pie(df_f, names='Genero', hole=0.4, title="Género"), use_container_width=True)
+                    with g2: st.plotly_chart(px.bar(df_f['Tipo Contrato'].value_counts().reset_index(), x='Tipo Contrato', y='count', title="Contratos"), use_container_width=True)
+                else:
+                    st.info("Seleccione empresas.")
+        except Exception as e:
+            st.error(f"Error en colaboradores: {e}")
 
 # Pie de página
 st.markdown("---")
