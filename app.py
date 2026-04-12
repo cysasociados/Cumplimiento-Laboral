@@ -16,23 +16,30 @@ def cargar_datos(sheet_id, nombre_pestana):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
         df = pd.read_csv(url)
-        return df if not df.empty else pd.DataFrame()
-    except:
+        # Limpiamos nombres de columnas y quitamos filas vacías
+        df.columns = df.columns.str.strip()
+        return df.dropna(how='all')
+    except Exception as e:
         return pd.DataFrame()
 
-# --- SISTEMA DE LOGIN POR NIVELES ---
+# --- SISTEMA DE LOGIN POR ROLES (ADMIN, REVISOR, USUARIO) ---
 def check_password():
     if "authenticated" not in st.session_state:
         st.markdown("<br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.title("🔐 Acceso al Portal CyS")
+            st.title("🔐 Acceso a Control Laboral CMSG")
             st.info("Ingrese su clave personal para continuar.")
-            pwd_input = st.text_input("Contraseña:", type="password")
+            pwd_input = st.text_input("Contraseña:", type="password").strip()
+            
             if st.button("Ingresar"):
-                df_u = cargar_datos(ID_USUARIOS, "Hoja 1")
+                df_u = cargar_datos(ID_USUARIOS, "Usuarios")
+                
                 if not df_u.empty:
-                    user_match = df_u[df_u['Clave'].astype(str) == pwd_input]
+                    # Buscamos la clave ignorando espacios
+                    df_u['Clave'] = df_u['Clave'].astype(str).str.strip()
+                    user_match = df_u[df_u['Clave'] == pwd_input]
+                    
                     if not user_match.empty:
                         st.session_state["authenticated"] = True
                         st.session_state["user_nombre"] = user_match.iloc[0]['Nombre']
@@ -40,16 +47,16 @@ def check_password():
                         st.session_state["user_empresa"] = user_match.iloc[0]['Empresa']
                         st.rerun()
                     else:
-                        st.error("❌ Clave no válida.")
+                        st.error("❌ Clave no válida. Intente nuevamente.")
                 else:
-                    st.error("⚠️ Error de conexión con la base de usuarios.")
+                    st.error("⚠️ No se pudo cargar la base de usuarios. Verifique los permisos del archivo.")
         return False
     return True
 
 if not check_password():
     st.stop()
 
-# --- INTERFAZ POST-LOGIN ---
+# --- DISEÑO POST-LOGIN ---
 st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 with st.sidebar:
@@ -72,13 +79,14 @@ tab1, tab2, tab3 = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 M
 with tab1:
     df_av = cargar_datos(ID_AVANCE, anio_global)
     if not df_av.empty:
+        # FILTRO DE SEGURIDAD POR ROL
         if st.session_state["user_rol"] == "USUARIO":
             df_display = df_av[df_av['Empresa'] == st.session_state["user_empresa"]]
         else:
             df_display = df_av
 
         if df_display.empty:
-            st.info(f"Sin datos para {st.session_state['user_empresa']}.")
+            st.warning(f"No hay registros para la empresa {st.session_state['user_empresa']}.")
         else:
             try:
                 mapa_estados = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
@@ -93,7 +101,7 @@ with tab1:
                 cols_f = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
                 datos_periodo = df_display[cols_f]
 
-                # KPIs
+                # KPIs (Excluyendo el 9 y el 8 del cumplimiento real)
                 mask_real = datos_periodo.isin([1, 2, 3, 4, 5])
                 total_r = mask_real.sum().sum()
                 total_c = (datos_periodo == 5).sum().sum()
@@ -101,13 +109,13 @@ with tab1:
 
                 st.header(f"Gestión de Cumplimiento")
                 k1, k2, k3 = st.columns(3)
-                k1.metric("Unidades", len(df_display))
-                k2.metric("% Cumplimiento", f"{porc_c:.1f}%")
+                k1.metric("Empresas en Vista", len(df_display))
+                k2.metric("% Cumplimiento Real", f"{porc_c:.1f}%")
                 
                 tiene_f = datos_periodo.isin([1, 2, 3, 4]).any(axis=1)
                 tiene_e = (datos_periodo == 5).any(axis=1)
                 al_d = (tiene_e & ~tiene_f).sum()
-                k3.metric("Al Día", al_d)
+                k3.metric("Empresas al Día", al_d)
 
                 st.divider()
                 st.subheader("📊 Conteo de Estados")
@@ -116,10 +124,16 @@ with tab1:
                 c2.metric("🔵 En Revisión", (datos_periodo == 2).sum().sum())
                 c3.metric("🟠 Carga Doc.", (datos_periodo == 1).sum().sum())
                 c4.metric("🟡 Observado", (datos_periodo == 3).sum().sum())
+                
+                c5, c6, c7, _ = st.columns(4)
+                c5.metric("🔴 No Cumple", (datos_periodo == 4).sum().sum())
+                c6.metric("⚪ Sin Info", (datos_periodo == 8).sum().sum())
+                c7.metric("🟤 No Corresp.", (datos_periodo == 9).sum().sum())
 
-                # Evolución (Solo ADMIN/REVISOR)
+                # Gráfico Evolución (No disponible para Rol USUARIO para evitar comparaciones)
                 if st.session_state["user_rol"] != "USUARIO":
                     st.divider()
+                    st.subheader("📈 Evolución Mensual del Grupo")
                     resumen_evo = []
                     for m in cols_activos:
                         counts = df_display[m].value_counts()
@@ -128,10 +142,10 @@ with tab1:
                     st.plotly_chart(px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', color_discrete_map=colores_mapa, barmode='stack'), use_container_width=True)
 
                 st.divider()
-                # Detalle Individual (Tabla debajo del gráfico)
-                st.subheader("🎯 Detalle Específico")
+                # --- DETALLE INDIVIDUAL (TABLA DEBAJO DE GRÁFICO) ---
+                st.subheader("🎯 Zoom Específico")
                 if st.session_state["user_rol"] != "USUARIO":
-                    emp_v = st.selectbox("Empresa:", sorted(list(df_display["Empresa"].unique())))
+                    emp_v = st.selectbox("Seleccione Empresa:", sorted(list(df_display["Empresa"].unique())))
                 else:
                     emp_v = st.session_state["user_empresa"]
                 
@@ -141,21 +155,22 @@ with tab1:
                 st.plotly_chart(px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa, title=f"Distribución: {emp_v}"), use_container_width=True)
                 st.table(df_det.set_index('Mes').T)
 
-            except Exception as e: st.error(f"Error: {e}")
+            except Exception as e: st.error(f"Error en cálculos: {e}")
 
-# --- PESTAÑA 2: EMPRESAS (RESTRINGIDA) ---
+# --- PESTAÑA 2: EMPRESAS (BLOQUEADA PARA USUARIOS EECC) ---
 with tab2:
     if st.session_state["user_rol"] == "USUARIO":
-        st.warning("Acceso restringido para Administradores.")
+        st.warning("Acceso restringido. Esta pestaña es solo para Administradores y Revisores.")
     else:
         st.header("Base de Datos Empresas")
         st.dataframe(cargar_datos(ID_EMPRESAS, "Hoja 1"), use_container_width=True)
 
-# --- PESTAÑA 3: COLABORADORES ---
+# --- PESTAÑA 3: COLABORADORES (BLOQUEO 2025) ---
 with tab3:
     if anio_global == "2025":
-        st.warning("⚠️ Sin datos de Masa para 2025.")
+        st.warning("⚠️ Sin datos de Masa Laboral para el periodo 2025.")
     else:
+        st.header(f"Análisis de Dotación")
         meses_abrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
         with st.sidebar:
             st.divider()
@@ -192,10 +207,11 @@ with tab3:
                     m4.metric("HH.EE", f"{hhe:,.0f}")
                     
                     g1, g2 = st.columns(2)
-                    with g1: st.plotly_chart(px.pie(df_f, names='Genero', hole=0.4, title="Género"), use_container_width=True)
-                    with g2: st.plotly_chart(px.bar(df_f['Tipo Contrato'].value_counts().reset_index(), x='Tipo Contrato', y='count', title="Contratos"), use_container_width=True)
-                else: st.info("Sin datos para la selección.")
-        except: st.info("Cargue un periodo con datos.")
+                    with g1: st.plotly_chart(px.pie(df_f, names='Genero', hole=0.4, title="Distribución Género"), use_container_width=True)
+                    with g2: st.plotly_chart(px.bar(df_f['Tipo Contrato'].value_counts().reset_index(), x='Tipo Contrato', y='count', title="Tipos de Contrato"), use_container_width=True)
+                else:
+                    st.info("No hay datos de colaboradores para mostrar.")
+        except Exception as e: st.info(f"Seleccione un periodo con datos cargados. ({e})")
 
 # Pie de página
 st.markdown("---")
