@@ -161,94 +161,103 @@ with tab2:
         st.error(f"Error en Pestaña 2: {e}")
 
 with tab3:
-    st.header("👥 Análisis de Masa Trabajadores EECC")
-    
-    meses_abrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-    
-    with st.sidebar:
-        st.divider()
-        st.subheader("Configuración Masa Trabajadores")
-        # Agregamos la opción "AÑO COMPLETO" al selector
-        mes_colab = st.selectbox("Seleccione Periodo de Masa:", ["AÑO COMPLETO"] + meses_abrev)
-        anio_corto = anio_global[-2:]
+    # 1. Restricción de Año: Solo permitimos 2026 en adelante
+    if anio_global == "2025":
+        st.warning("⚠️ La información de Masa de Trabajadores solo está disponible a partir del periodo 2026.")
+        st.info("Para ver datos de este año, por favor cambie el 'Año de Análisis' a 2026 en el menú lateral.")
+    else:
+        st.header(f"👥 KPIs Masa Trabajadores EECC - {anio_global}")
+        
+        meses_abrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        
+        with st.sidebar:
+            st.divider()
+            st.subheader("Filtros Pestaña 3")
+            mes_colab = st.selectbox("Seleccione Mes:", ["AÑO COMPLETO"] + meses_abrev)
+            anio_corto = anio_global[-2:]
 
-    try:
-        if mes_colab == "AÑO COMPLETO":
-            # Lógica para consolidar todas las hojas del año
-            list_df = []
-            for m in meses_abrev:
-                try:
-                    # Intentamos cargar cada hoja del año
-                    temp_df = cargar_datos(ID_COLABORADORES, f"{m}{anio_corto}")
-                    temp_df['Mes_Origen'] = m # Guardamos de qué mes viene el dato
-                    list_df.append(temp_df)
-                except:
-                    continue # Si la hoja no existe (ej: meses futuros), se la salta
-            
-            if list_df:
-                df_staff = pd.concat(list_df, ignore_index=True)
-                # Eliminamos duplicados por RUT para que el "Total de Personas" sea real y no inflado
-                df_staff_unicos = df_staff.drop_duplicates(subset=['Rut Trabajador'])
-                texto_periodo = f"Consolidado Anual {anio_global}"
+        try:
+            # 2. Carga de Datos (Mensual o Consolidado)
+            if mes_colab == "AÑO COMPLETO":
+                list_df = []
+                for m in meses_abrev:
+                    try:
+                        temp_df = cargar_datos(ID_COLABORADORES, f"{m}{anio_corto}")
+                        list_df.append(temp_df)
+                    except:
+                        continue
+                if list_df:
+                    df_staff = pd.concat(list_df, ignore_index=True)
+                    # Para el año completo, usamos RUT único para dotación real
+                    df_staff = df_staff.drop_duplicates(subset=['Rut Trabajador'])
+                else:
+                    st.error("No hay hojas de datos creadas para el 2026.")
+                    st.stop()
             else:
-                st.error("No se encontraron hojas de datos para este año.")
-                st.stop()
-        else:
-            # Carga de un mes específico
-            nombre_hoja_real = f"{mes_colab}{anio_corto}"
-            df_staff = cargar_datos(ID_COLABORADORES, nombre_hoja_real)
-            df_staff_unicos = df_staff # En un mes, todos son únicos
-            texto_periodo = f"Periodo: {mes_colab}{anio_corto}"
+                nombre_hoja_real = f"{mes_colab}{anio_corto}"
+                df_staff = cargar_datos(ID_COLABORADORES, nombre_hoja_real)
 
-        # Limpieza de columnas
-        df_staff_unicos.columns = df_staff_unicos.columns.str.strip()
+            # Limpieza de columnas
+            df_staff.columns = df_staff.columns.str.strip()
 
-        # --- FILA 1: KPIs ---
-        col1, col2, col3, col4 = st.columns(4)
-        
-        total_p = len(df_staff_unicos)
-        mujeres = len(df_staff_unicos[df_staff_unicos['Genero'].str.contains('Femenino', case=False, na=False)])
-        porc_mujeres = (mujeres / total_p * 100) if total_p > 0 else 0
-        
-        extranjeros = len(df_staff_unicos[~df_staff_unicos['Nacionalidad'].str.contains('Chile', case=False, na=False)])
-        
-        # Para las horas extra, si es año completo, las sumamos todas
-        col_hhextra = 'Total Horas Extra'
-        if col_hhextra in df_staff.columns:
-            total_hhextra = pd.to_numeric(df_staff[col_hhextra], errors='coerce').sum()
-        else:
-            total_hhextra = 0
+            # 3. NUEVO: Filtro por Empresa (Razón Social)
+            empresas_disponibles = sorted(df_staff['Razón Social'].unique())
+            empresa_sel = st.multiselect("Filtrar por Empresa (EECC):", 
+                                          options=empresas_disponibles, 
+                                          default=empresas_disponibles,
+                                          help="Puedes borrar empresas para ver solo las que te interesan")
 
-        col1.metric("Dotación (Personas)", total_p)
-        col2.metric("Participación Femenina", f"{porc_mujeres:.1f}%")
-        col3.metric("Personal Extranjero", extranjeros)
-        col4.metric("Total Horas Extra", f"{total_hhextra:,.0f}")
+            # Aplicamos el filtro de empresa
+            df_filtrado = df_staff[df_staff['Razón Social'].isin(empresa_sel)]
 
-        st.divider()
+            if df_filtrado.empty:
+                st.info("Seleccione al menos una empresa para ver los indicadores.")
+            else:
+                # --- FILA 1: KPIs ---
+                col1, col2, col3, col4 = st.columns(4)
+                
+                total_p = len(df_filtrado)
+                mujeres = len(df_filtrado[df_filtrado['Genero'].str.contains('Femenino', case=False, na=False)])
+                porc_mujeres = (mujeres / total_p * 100) if total_p > 0 else 0
+                
+                extranjeros = len(df_filtrado[~df_filtrado['Nacionalidad'].str.contains('Chile', case=False, na=False)])
+                
+                col_hhextra = 'Total Horas Extra'
+                total_hhextra = pd.to_numeric(df_filtrado[col_hhextra], errors='coerce').sum() if col_hhextra in df_filtrado.columns else 0
 
-        # --- FILA 2: GRÁFICOS ---
-        g1, g2 = st.columns(2)
+                col1.metric("Dotación Activa", total_p)
+                col2.metric("% Participación Fem.", f"{porc_mujeres:.1f}%")
+                col3.metric("Personal Extranjero", extranjeros)
+                col4.metric("Total Horas Extra", f"{total_hhextra:,.0f}")
 
-        with g1:
-            st.subheader(f"🍪 Género ({texto_periodo})")
-            fig_gen = px.pie(df_staff_unicos, names='Genero', hole=0.4, 
-                             color_discrete_sequence=['#1E90FF', '#FF69B4'])
-            st.plotly_chart(fig_gen, use_container_width=True)
+                st.divider()
 
-        with g2:
-            st.subheader("📝 Estabilidad Contractual")
-            fig_cont = px.bar(df_staff_unicos['Tipo Contrato'].value_counts().reset_index(), 
-                              x='Tipo Contrato', y='count', color='Tipo Contrato',
-                              color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_cont, use_container_width=True)
+                # --- FILA 2: GRÁFICOS ---
+                g1, g2 = st.columns(2)
 
-        # --- FILA 3: TABLA ---
-        st.subheader(f"📋 Detalle de Personal - {texto_periodo}")
-        st.dataframe(df_staff_unicos[['Razón Social', 'Rut Trabajador', 'Nombres', 'Apellido Paterno', 'Genero', 'Comuna']], 
-                     use_container_width=True)
+                with g1:
+                    st.subheader("🍪 Distribución de Género")
+                    fig_gen = px.pie(df_filtrado, names='Genero', hole=0.4, 
+                                     color_discrete_sequence=['#1E90FF', '#FF69B4'])
+                    st.plotly_chart(fig_gen, use_container_width=True)
 
-    except Exception as e:
-        st.warning(f"No hay datos disponibles para el filtro seleccionado.")
+                with g2:
+                    st.subheader("📝 Estabilidad Contractual")
+                    conteo_contratos = df_filtrado['Tipo Contrato'].value_counts().reset_index()
+                    fig_cont = px.bar(conteo_contratos, x='Tipo Contrato', y='count', 
+                                      color='Tipo Contrato', labels={'count':'Cantidad'},
+                                      color_discrete_sequence=px.colors.qualitative.Pastel)
+                    st.plotly_chart(fig_cont, use_container_width=True)
+
+                # --- FILA 3: ORIGEN ---
+                st.subheader("📍 Procedencia (Comuna)")
+                fig_com = px.bar(df_filtrado['Comuna'].value_counts().head(10).reset_index(),
+                                 x='count', y='Comuna', orientation='h',
+                                 color_discrete_sequence=['#00FF00'])
+                st.plotly_chart(fig_com, use_container_width=True)
+
+        except Exception as e:
+            st.warning(f"No se encontró información para el mes seleccionado.")
 
 # Pie de página
 st.markdown("---")
