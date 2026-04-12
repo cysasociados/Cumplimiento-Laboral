@@ -43,7 +43,7 @@ def check_password():
                     
                     if not user_match.empty:
                         info_usr = user_match.iloc[0]
-                        # REGISTRO DE ACCESO CON DÍA Y HORA
+                        # LOG DETALLADO: DÍA Y HORA
                         st.session_state["log_accesos"].append({
                             "Fecha": datetime.now().strftime("%d/%m/%Y"),
                             "Hora": datetime.now().strftime("%H:%M:%S"),
@@ -74,15 +74,19 @@ with st.sidebar:
     st.image("https://cysasociados.cl/wp-content/uploads/2022/05/logo-cys.png", width=150)
     st.markdown(f"👤 **{st.session_state['user_nombre']}**")
     st.caption(f"Rol: {st.session_state['user_rol']}")
+    # RECUPERADO: NOMBRE DE EMPRESA EN EL SIDEBAR
+    if st.session_state["user_rol"] == "USUARIO":
+        st.caption(f"Empresa: {st.session_state['user_empresa']}")
+    
     st.divider()
     anio_global = st.selectbox("Año de Análisis", ["2025", "2026"])
     if st.button("Cerrar Sesión"):
         del st.session_state["authenticated"]
         st.rerun()
 
-st.title(f"Bienvenido al Portal de Gestión 👋")
+st.title(f"Bienvenido a Control Laboral CMSG 👋")
 
-# --- DEFINICIÓN DINÁMICA DE PESTAÑAS ---
+# --- DEFINICIÓN DE PESTAÑAS ---
 rol = st.session_state["user_rol"]
 if rol == "ADMIN":
     tabs = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "⚙️ Administración"])
@@ -139,7 +143,7 @@ with tabs[0]:
             c6.metric("⚪ Sin Info", (datos_periodo == 8).sum().sum())
             c7.metric("🟤 No Corresp.", (datos_periodo == 9).sum().sum())
 
-            # --- RECUPERADO: GRÁFICO DE BARRAS (EVOLUCIÓN) ---
+            # Gráfico de Barras de Evolución
             if rol != "USUARIO":
                 st.divider()
                 st.subheader("📈 Evolución Mensual del Grupo")
@@ -152,10 +156,23 @@ with tabs[0]:
                     st.plotly_chart(px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', color_discrete_map=colores_mapa, barmode='stack'), use_container_width=True)
 
             st.divider()
+            # --- DETALLE INDIVIDUAL CON ESCUDO PARA NaN ---
             st.subheader("🎯 Detalle Individual")
             emp_v = st.selectbox("Seleccione Empresa:", sorted(list(df_display["Empresa"].unique()))) if rol != "USUARIO" else st.session_state["user_empresa"]
+            
             row_emp = df_display[df_display["Empresa"] == emp_v][cols_f].iloc[0]
-            df_det = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_estados.get(int(c), "Otro")} for m, c in row_emp.items()])
+            
+            # Lógica reforzada para evitar el error de float NaN
+            detalle_limpio = []
+            for m, c in row_emp.items():
+                if pd.isna(c):
+                    est_txt = "Sin Datos"
+                else:
+                    est_txt = mapa_estados.get(int(c), "Otro")
+                detalle_limpio.append({'Mes': m.upper(), 'Estado': est_txt})
+            
+            df_det = pd.DataFrame(detalle_limpio)
+            
             st.plotly_chart(px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa, title=f"Distribución: {emp_v}"), use_container_width=True)
             st.table(df_det.set_index('Mes').T)
 
@@ -165,7 +182,6 @@ with tabs[0]:
 if rol != "USUARIO":
     with tabs[1]:
         st.header("🏢 KPIs Nivel Empresa")
-        st.info("Espacio para métricas de gestión administrativa.")
         st.dataframe(cargar_datos(ID_EMPRESAS, "Hoja 1"), use_container_width=True)
 
 # --- PESTAÑA 3: COLABORADORES ---
@@ -187,7 +203,7 @@ with tabs[idx_masa]:
             df_f = df_s[df_s['Razón Social'] == st.session_state["user_empresa"]] if rol == "USUARIO" else df_s
 
             st.subheader("🚨 Alertas de Estabilidad")
-            plazo_f = df_f[df_f['Tipo Contrato'].str.contains("Plazo Fijo", na=False)]
+            plazo_f = df_f[df_f['Tipo Contrato'].str.contains("Plazo Fijo", na=False)] if 'Tipo Contrato' in df_f.columns else pd.DataFrame()
             if not plazo_f.empty:
                 st.warning(f"Se detectaron {len(plazo_f)} contratos a Plazo Fijo.")
                 st.dataframe(plazo_f[['Razón Social', 'Rut Trabajador', 'Nombres', 'Tipo Contrato']], use_container_width=True)
@@ -201,20 +217,18 @@ with tabs[idx_masa]:
             
             st.plotly_chart(px.pie(df_f, names='Genero', hole=0.4, title="Género"), use_container_width=True)
 
-# --- PESTAÑA 4: ADMINISTRACIÓN (SÓLO SERGIO / ADMIN) ---
+# --- PESTAÑA 4: ADMINISTRACIÓN (SOLO SERGIO / ADMIN) ---
 if rol == "ADMIN":
     with tabs[3]:
-        st.header("⚙️ Centro de Administración y Control")
+        st.header("⚙️ Centro de Administración")
         st.subheader("📅 Log de Accesos (Registro Detallado)")
         if st.session_state["log_accesos"]:
-            # Mostramos el log con las nuevas columnas de Fecha y Hora
             st.table(pd.DataFrame(st.session_state["log_accesos"]))
-        else: st.info("Sin ingresos registrados en esta sesión.")
+        else: st.info("Sin ingresos registrados.")
         
         st.divider()
         st.subheader("👥 Usuarios del Sistema")
         st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
-# Pie de página
 st.markdown("---")
 st.caption("Sistema desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
