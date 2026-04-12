@@ -7,18 +7,18 @@ import requests
 # 1. CONFIGURACIÓN Y LLAVE MAESTRA
 st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="🛡️")
 
-# Estilo para ocultar menús de sistema
+# Estilo para ocultar menús de sistema y dejar la interfaz limpia
 st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
-# URL DE TU APPS SCRIPT
+# URL DE TU APPS SCRIPT (Copiada de tu implementación)
 URL_MI_SCRIPT = "https://script.google.com/a/macros/cysasociados.cl/s/AKfycbwi-UFcqZPZFmvA_80Naul4hHoJJAgUd8htMkJUmCpnGs_BAweZVOFFzclWQczMQXbq/exec"
 
 if "log_accesos" not in st.session_state:
     st.session_state["log_accesos"] = []
 
-# IDs de Google Sheets
+# IDs de Google Sheets (Actualizados con tu nuevo link)
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
-ID_EMPRESAS = "1yZfnAfit8CPzPU-BnhZMEFIr6mNZs91q4SthH9TrAOo"
+ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" # <--- TU NUEVO LINK
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 
@@ -32,32 +32,40 @@ def cargar_datos(sheet_id, nombre_pestana):
     except:
         return pd.DataFrame()
 
-# --- 2. SISTEMA DE LOGIN ---
+# --- 2. SISTEMA DE LOGIN POR ROLES ---
 def check_password():
     if "authenticated" not in st.session_state:
         st.markdown("<br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.title("🔐 Acceso Control Laboral CMSG")
+            st.info("Ingrese su clave personal para continuar.")
             pwd_input = st.text_input("Contraseña:", type="password").strip()
+            
             if st.button("Ingresar"):
                 df_u = cargar_datos(ID_USUARIOS, "Usuarios")
                 if not df_u.empty:
                     df_u['Clave'] = df_u['Clave'].astype(str).str.strip()
                     user_match = df_u[df_u['Clave'] == pwd_input]
+                    
                     if not user_match.empty:
-                        info = user_match.iloc[0]
+                        info_usr = user_match.iloc[0]
                         st.session_state["log_accesos"].append({
                             "Fecha": datetime.now().strftime("%d/%m/%Y"),
                             "Hora": datetime.now().strftime("%H:%M:%S"),
-                            "Usuario": info['Nombre'], "Empresa": info['Empresa']
+                            "Usuario": info_usr['Nombre'],
+                            "Empresa": info_usr['Empresa'],
+                            "Rol": info_usr['Rol']
                         })
                         st.session_state["authenticated"] = True
-                        st.session_state["user_nombre"] = info['Nombre']
-                        st.session_state["user_rol"] = info['Rol']
-                        st.session_state["user_empresa"] = info['Empresa']
+                        st.session_state["user_nombre"] = info_usr['Nombre']
+                        st.session_state["user_rol"] = info_usr['Rol']
+                        st.session_state["user_empresa"] = info_usr['Empresa']
                         st.rerun()
-                    else: st.error("❌ Clave no válida.")
+                    else:
+                        st.error("❌ Clave no válida.")
+                else:
+                    st.error("⚠️ Error de conexión con la base de usuarios.")
         return False
     return True
 
@@ -85,138 +93,64 @@ elif rol == "REVISOR":
 else:
     tabs = st.tabs(["📈 Mi Avance", "👥 Masa Laboral"])
 
-# --- TAB 1: CUMPLIMIENTO TOTAL ---
+# --- TAB 1: CUMPLIMIENTO, INDICADORES Y DESCARGAS ---
 with tabs[0]:
     df_av = cargar_datos(ID_AVANCE, anio_global)
     df_eecc = cargar_datos(ID_EMPRESAS, "Hoja 1")
     
     if not df_av.empty:
         df_f = df_av[df_av['Empresa'] == st.session_state["user_empresa"]] if rol == "USUARIO" else df_av
-        
-        meses_list = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
-        dic_mm = {m: str(i+1).zfill(2) for i, m in enumerate(meses_list)}
-        cols_activos = [c for c in meses_list if c in df_f.columns]
-        
-        with st.sidebar:
+
+        try:
+            mapa_estados = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
+            colores_mapa = {"Carga Doc.":"#FF8C00", "En Revision":"#1E90FF", "Observado":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
+            meses_list = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+            dic_mm = {m: str(i+1).zfill(2) for i, m in enumerate(meses_list)}
+            
+            cols_activos = [c for c in meses_list if c in df_f.columns]
+            with st.sidebar:
+                st.divider()
+                mes_sel = st.selectbox("Mes de Análisis:", ["AÑO COMPLETO"] + cols_activos)
+
+            cols_kpi = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
+            datos_kpi = df_f[cols_kpi]
+
+            # --- SECCIÓN KPIs SUPERIORES ---
+            st.header(f"Gestión de Cumplimiento - {anio_global}")
+            mask_real = datos_kpi.isin([1, 2, 3, 4, 5])
+            total_real = mask_real.sum().sum()
+            total_cumple = (datos_kpi == 5).sum().sum()
+            porc_c = (total_cumple / total_real * 100) if total_real > 0 else 0
+
+            k1, k2, k3 = st.columns(3)
+            k1.metric("Unidades Auditadas", len(df_f))
+            k2.metric("% Cumplimiento Real", f"{porc_c:.1f}%")
+            al_dia = ( (datos_kpi == 5).any(axis=1) & ~datos_kpi.isin([1, 2, 3, 4]).any(axis=1) ).sum()
+            k3.metric("Empresas al Día", al_dia)
+
             st.divider()
-            mes_sel = st.selectbox("Mes de Análisis:", ["AÑO COMPLETO"] + cols_activos)
+            # --- INDICADORES POR ESTADO ---
+            st.subheader("📊 Resumen de Estados (Conteo)")
+            ind1, ind2, ind3, ind4, ind5 = st.columns(5)
+            ind1.metric("✅ Cumple", (datos_kpi == 5).sum().sum())
+            ind2.metric("🔵 Revisión", (datos_kpi == 2).sum().sum())
+            ind3.metric("🟠 Carga", (datos_kpi == 1).sum().sum())
+            ind4.metric("🟡 Observado", (datos_kpi == 3).sum().sum())
+            ind5.metric("🔴 No Cumple", (datos_kpi == 4).sum().sum())
 
-        # --- INDICADORES SUPERIORES (KPIs) ---
-        st.header(f"Control de Cumplimiento Laboral CMSG - {anio_global}")
-        
-        cols_kpi = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
-        datos_kpi = df_f[cols_kpi]
-        
-        # Matemática de cumplimiento
-        mask_real = datos_kpi.isin([1, 2, 3, 4, 5])
-        total_real = mask_real.sum().sum()
-        total_cumple = (datos_kpi == 5).sum().sum()
-        porc_cumple = (total_cumple / total_real * 100) if total_real > 0 else 0
-        
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Unidades Auditadas", len(df_f))
-        k2.metric("% Cumplimiento Real", f"{porc_cumple:.1f}%")
-        al_dia = ( (datos_kpi == 5).any(axis=1) & ~datos_kpi.isin([1, 2, 3, 4]).any(axis=1) ).sum()
-        k3.metric("Empresas al Día", al_dia)
-
-        # --- NUEVO: INDICADORES POR ESTADO ---
-        st.subheader("📊 Resumen de Estados (Periodo Seleccionado)")
-        ind1, ind2, ind3, ind4, ind5 = st.columns(5)
-        ind1.metric("✅ Cumple", (datos_kpi == 5).sum().sum())
-        ind2.metric("🔵 Revisión", (datos_kpi == 2).sum().sum())
-        ind3.metric("🟠 Carga", (datos_kpi == 1).sum().sum())
-        ind4.metric("🟡 Observado", (datos_kpi == 3).sum().sum())
-        ind5.metric("🔴 No Cumple", (datos_kpi == 4).sum().sum())
-
-        st.divider()
-
-        # --- GRÁFICO DE BARRAS (EVOLUCIÓN GRUPAL) ---
-        mapa_e = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
-        colores = {"Carga Doc.":"#FF8C00", "En Revision":"#1E90FF", "Observado":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
-
-        if rol != "USUARIO":
-            st.subheader("📈 Evolución Mensual del Grupo")
-            resumen_evo = []
-            for m in cols_activos:
-                counts = df_f[m].value_counts()
-                for cod, cant in counts.items():
-                    resumen_evo.append({'Mes': m.upper(), 'Estado': mapa_e.get(int(cod), "Otro"), 'Cant': cant})
-            if resumen_evo:
-                fig_bar = px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', 
-                                 color_discrete_map=colores, barmode='stack', height=400)
-                st.plotly_chart(fig_bar, use_container_width=True)
-
-        st.divider()
-
-        # --- SECCIÓN HALLAZGOS Y BUSCADOR ---
-        st.subheader("🎯 Detalle Específico y Certificados")
-        emp_v = st.selectbox("Seleccione Empresa:", sorted(df_f["Empresa"].unique())) if rol != "USUARIO" else st.session_state["user_empresa"]
-        row_emp = df_f[df_f["Empresa"] == emp_v].iloc[0]
-
-        c_obs, c_cert = st.columns([2, 1])
-        with c_obs:
-            st.markdown(f"**Hallazgos de Auditoría ({mes_sel}):**")
-            obs = row_emp["Obs Auditoria"] if "Obs Auditoria" in row_emp else ""
-            if pd.notna(obs) and str(obs).strip() != "": st.warning(obs)
-            else: st.success("✅ Sin observaciones pendientes.")
-
-        with c_cert:
-            st.markdown("**Buscador de Certificados:**")
-            if mes_sel != "AÑO COMPLETO":
-                if not df_eecc.empty and "ID_Carpeta" in df_eecc.columns:
-                    match_emp = df_eecc[df_eecc['Empresa'] == emp_v]
-                    if not match_emp.empty:
-                        id_carpeta = str(match_emp['ID_Carpeta'].iloc[0]).strip()
-                        mm = dic_mm.get(mes_sel.lower())
-                        nombre_pdf = f"Certificado.{mm}{anio_global}"
-                        
-                        if st.button(f"🔍 Buscar Certificado {mes_sel}"):
-                            with st.spinner("Consultando Drive..."):
-                                try:
-                                    res = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_pdf}&carpeta={id_carpeta}", timeout=10)
-                                    resultado = res.text.strip()
-                                    if resultado.startswith("http"):
-                                        st.success("¡Documento encontrado!")
-                                        st.link_button("📥 Descargar PDF", resultado)
-                                    else:
-                                        st.warning("⚠️ Certificado No Disponible")
-                                except:
-                                    st.error("Error de conexión con Drive.")
-                else: st.error("Falta columna 'ID_Carpeta' en Empresas.")
-            else: st.info("Elija un mes para descargar.")
-
-        st.divider()
-        
-        # --- GRÁFICO INDIVIDUAL PIE Y TABLA ---
-        st.subheader(f"Distribución de Estados: {emp_v}")
-        cols_g = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
-        df_p = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_e.get(int(row_emp[m]), "Sin Datos") if pd.notna(row_emp[m]) else "Sin Datos"} for m in cols_g])
-        st.plotly_chart(px.pie(df_p, names='Estado', hole=.4, color='Estado', color_discrete_map=colores), use_container_width=True)
-        st.table(df_p.set_index('Mes').T)
-
-# --- LAS DEMÁS PESTAÑAS SE MANTIENEN IGUAL ---
-if rol != "USUARIO":
-    with tabs[1]:
-        st.header("🏢 Base de Datos Empresas")
-        st.dataframe(df_eecc, use_container_width=True)
-
-idx_m = 1 if rol == "USUARIO" else 2
-with tabs[idx_m]:
-    if anio_global == "2025": st.warning("⚠️ Datos no disponibles.")
-    else:
-        st.header("👥 Dotación")
-        mes_m = st.sidebar.selectbox("Mes Masa:", ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"])
-        df_s = cargar_datos(ID_COLABORADORES, f"{mes_m}{anio_global[-2:]}")
-        if not df_s.empty:
-            df_f_m = df_s[df_s['Razón Social'] == st.session_state["user_empresa"]] if rol == "USUARIO" else df_s
-            st.metric("Dotación Total", len(df_f_m))
-            st.plotly_chart(px.pie(df_f_m, names='Genero', hole=0.4, title="Género"), use_container_width=True)
-
-if rol == "ADMIN":
-    with tabs[3]:
-        st.header("⚙️ Administración")
-        if st.session_state["log_accesos"]: st.table(pd.DataFrame(st.session_state["log_accesos"]))
-        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
+            st.divider()
+            # --- GRÁFICO DE BARRAS DE EVOLUCIÓN ---
+            if rol != "USUARIO":
+                st.subheader("📈 Evolución Mensual del Grupo")
+                resumen_evo = []
+                for m in cols_activos:
+                    counts = df_f[m].value_counts()
+                    for cod, cant in counts.items():
+                        resumen_evo.append({'Mes': m.upper(), 'Estado': mapa_estados.get(int(cod), "Otro"), 'Cant': cant})
+                if resumen_evo:
+                    fig_bar = px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', 
+                                     color_discrete_map=colores_mapa, barmode='stack', height=400)
+                    st.plotly_chart
 
 st.markdown("---")
 st.caption("Sistema de gestión de datos en tiempo real, desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
