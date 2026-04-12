@@ -20,7 +20,7 @@ ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1yZfnAfit8CPzPU-BnhZMEFIr6mNZs91q4SthH9TrAOo"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
-# --- FUNCIÓN DE CARGA ---
+# --- FUNCIÓN DE CARGA (TTL de 60 segundos para actualizaciones rápidas) ---
 @st.cache_data(ttl=60)
 def cargar_datos(sheet_id, nombre_pestana):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
@@ -44,7 +44,6 @@ with tab1:
     try:
         df_av = cargar_datos(ID_AVANCE, anio_global)
         
-        # Mapeo y Colores de Alto Contraste
         mapa_estados = {
             1: "Carga Documentos", 2: "En Revision", 3: "Observado", 
             4: "No Cumple", 5: "Cumple", 8: "Sin Informacion", 9: "No Corresponde"
@@ -65,46 +64,43 @@ with tab1:
         st.header(f"Control de Cumplimiento Laboral CMSG - {periodo_txt}")
 
         cols_f = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
+        datos_periodo = df_av[cols_f]
 
-        # --- CÁLCULOS ---
-        total_e = len(df_av)
-        empresas_cumplen_full = (df_av[cols_f] == 5).all(axis=1).sum()
-        c_n = (df_av[cols_f] == 5).sum().sum()
-        t_n = df_av[cols_f].size
-        porc_cumplimiento = (c_n/t_n)*100 if t_n > 0 else 0
+        # --- CÁLCULOS DE CUMPLIMIENTO REAL (Excluyendo 'No Corresponde' 9 y 'Sin Info' 8) ---
+        
+        # 1. Porcentaje de Cumplimiento Real
+        # Solo evaluamos celdas que tengan estados de gestión (1, 2, 3, 4, 5)
+        mask_evaluables = datos_periodo.isin([1, 2, 3, 4, 5])
+        total_evaluables = mask_evaluables.sum().sum()
+        total_cumple = (datos_periodo == 5).sum().sum()
+        
+        porc_cumplimiento = (total_cumple / total_evaluables) * 100 if total_evaluables > 0 else 0
 
-        # --- FILA 1 DE KPIs (CUMPLIMIENTO) ---
+        # 2. Empresas al Día
+        # Una empresa está al día si en el periodo NO tiene estados negativos (1,2,3,4) 
+        # y tiene al menos un estado de 'Cumple' (5).
+        tiene_incumplimiento = datos_periodo.isin([1, 2, 3, 4]).any(axis=1)
+        tiene_cumplimiento = (datos_periodo == 5).any(axis=1)
+        empresas_cumplen_total = (tiene_cumplimiento & ~tiene_incumplimiento).sum()
+
+        # --- FILA 1 DE KPIs ---
         m1, m2, m3, m4, m5 = st.columns(5)
-        m1.metric("Total Empresas", total_e)
-        m2.metric("% Cumplimiento", f"{porc_cumplimiento:.1f}%")
-        m3.metric("Cumple", empresas_cumplen_full)
-        m4.metric("Observado", (df_av[cols_f] == 3).sum().sum())
-        m5.metric("No Cumple", (df_av[cols_f] == 4).sum().sum())
+        m1.metric("Total Empresas", len(df_av))
+        m2.metric("% Cumplimiento Real", f"{porc_cumplimiento:.1f}%", help="Ignora meses 'No Corresponde' y 'Sin Info'")
+        m3.metric("Empresas al Día", empresas_cumplen_total, help="Empresas con gestión perfecta en meses activos")
+        m4.metric("Observado", (datos_periodo == 3).sum().sum())
+        m5.metric("No Cumple", (datos_periodo == 4).sum().sum())
         
-        # --- FILA 2 DE KPIs (GESTIÓN Y OTROS) ---
+        # --- FILA 2 DE KPIs ---
         m6, m7, m8, m9 = st.columns(4)
-        m6.metric("En Revision", (df_av[cols_f] == 2).sum().sum())
-        m7.metric("Carga Documentos", (df_av[cols_f] == 1).sum().sum())
-        m8.metric("Sin Info", (df_av[cols_f] == 8).sum().sum())
-        m9.metric("No Corresponde", (df_av[cols_f] == 9).sum().sum())
-
-        # --- BALANCE DE GESTIÓN ---
-        st.write("---")
-        st.subheader("📌 Balance de Gestión de Auditoría")
-        g1, g2, g3 = st.columns(3)
-        
-        auditadas = (df_av[cols_f].isin([4, 5])).sum().sum()
-        g1.metric("Revisiones Finalizadas", auditadas)
-        
-        proceso = (df_av[cols_f].isin([1, 2, 3])).sum().sum()
-        g2.metric("En Proceso de Gestión", proceso)
-        
-        pendientes = (df_av[cols_f] == 8).sum().sum()
-        g3.metric("Pendientes de Inicio", pendientes)
+        m6.metric("En Revision", (datos_periodo == 2).sum().sum())
+        m7.metric("Carga Documentos", (datos_periodo == 1).sum().sum())
+        m8.metric("Sin Info", (datos_periodo == 8).sum().sum())
+        m9.metric("No Corresponde", (datos_periodo == 9).sum().sum())
 
         st.divider()
 
-        # Evolución Mensual
+        # Gráfico de Evolución
         st.subheader("📈 Evolución de Estados por Mes")
         resumen_evo = []
         for m in cols_activos:
@@ -124,18 +120,18 @@ with tab1:
             df_av['p_cumple'] = (df_av[cols_f] == 5).sum(axis=1)
             top_pos = df_av.nlargest(5, 'p_cumple')[['Empresa', 'p_cumple']]
             for i, row in enumerate(top_pos.itertuples(), 1):
-                st.write(f"{i}. **{row.Empresa}** ({row.p_cumple})")
+                st.write(f"{i}. **{row.Empresa}** ({row.p_cumple} meses)")
 
         with col_r2:
-            st.markdown("### ❌ Top 5: Menos Cumplidores")
+            st.markdown("### ❌ Top 5: Críticos (No Cumple)")
             df_av['p_ncumple'] = (df_av[cols_f] == 4).sum(axis=1)
             top_neg = df_av.nlargest(5, 'p_ncumple')[['Empresa', 'p_ncumple']]
             for i, row in enumerate(top_neg.itertuples(), 1):
-                st.write(f"{i}. **{row.Empresa}** ({row.p_ncumple})")
+                st.write(f"{i}. **{row.Empresa}** ({row.p_ncumple} meses)")
 
         st.divider()
 
-        # Detalle por empresa (DISEÑO VERTICAL)
+        # Detalle por empresa
         st.subheader("🎯 Detalle Específico por Empresa")
         emp_sel = st.selectbox("Seleccione empresa:", ["SELECCIONAR..."] + list(df_av["Empresa"].unique()))
 
@@ -146,20 +142,16 @@ with tab1:
                 detalle_data.append({'Mes': mes, 'Estado': mapa_estados.get(int(cod), "Otro")})
             df_det = pd.DataFrame(detalle_data)
             
-            # Gráfico Circular
             fig_p = px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa,
                            title=f"Distribución de Estados: {emp_sel}")
             fig_p.update_traces(textinfo='percent+label')
             st.plotly_chart(fig_p, use_container_width=True)
-            
-            # Tabla debajo
-            st.markdown(f"**Desglose mensual detallado para {emp_sel}:**")
             st.table(df_det.set_index('Mes').T)
 
     except Exception as e:
         st.error(f"Error en Pestaña 1: {e}")
 
-# --- PESTAÑA 2: KPIs EMPRESAS ---
+# --- PESTAÑAS RESTANTES ---
 with tab2:
     st.header("🏢 Información Mensual y KPIs")
     try:
@@ -168,9 +160,8 @@ with tab2:
     except Exception as e:
         st.error(f"Error en Pestaña 2: {e}")
 
-# --- PESTAÑA 3: TRABAJADORES EECC ---
 with tab3:
-    st.header("👥 Masa de Trabajadores y Cumplimiento")
+    st.header("👥 Masa Trabajadores EECC")
     try:
         df_staff = cargar_datos(ID_COLABORADORES, "Hoja 1")
         st.dataframe(df_staff, use_container_width=True)
