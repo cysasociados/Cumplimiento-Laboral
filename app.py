@@ -21,7 +21,7 @@ ID_EMPRESAS = "1yZfnAfit8CPzPU-BnhZMEFIr6mNZs91q4SthH9TrAOo"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
 # --- FUNCIÓN DE CARGA ---
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=60)
 def cargar_datos(sheet_id, nombre_pestana):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
     return pd.read_csv(url)
