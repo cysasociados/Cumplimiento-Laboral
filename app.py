@@ -12,10 +12,10 @@ def check_password():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.title("🔐 Acceso Restringido")
-            st.info("Bienvenido a Control Laboral CMSG. Por favor, identifíquese.")
-            password = st.text_input("Introduzca la contraseña:", type="password")
+            st.info("Bienvenido a Control Laboral CMSG. Por favor, ingrese su clave.")
+            password = st.text_input("Contraseña:", type="password")
             if st.button("Ingresar"):
-                if password == "CMSG2026": # <--- TU CLAVE
+                if password == "CMSG2026":
                     st.session_state["password_correct"] = True
                     st.rerun()
                 else:
@@ -26,9 +26,8 @@ def check_password():
 if not check_password():
     st.stop()
 
-# Ocultar menús nativos
-hide_st_style = """<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>"""
-st.markdown(hide_st_style, unsafe_allow_html=True)
+# Ocultar menús
+st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 # IDs de Google Sheets
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
@@ -40,18 +39,18 @@ def cargar_datos(sheet_id, nombre_pestana):
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
     return pd.read_csv(url)
 
-# --- MENÚ LATERAL GLOBAL ---
+# --- MENÚ LATERAL ---
 with st.sidebar:
     st.image("https://cysasociados.cl/wp-content/uploads/2022/05/logo-cys.png", width=150)
-    st.header("Configuración Global")
-    anio_global = st.selectbox("Seleccione Año de Análisis", ["2026", "2027"])
+    st.header("Configuración")
+    anio_global = st.selectbox("Año de Análisis", ["2025", "2026", "2027"])
     if st.button("Cerrar Sesión"):
         del st.session_state["password_correct"]
         st.rerun()
 
 tab1, tab2, tab3 = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores"])
 
-# --- PESTAÑA 1: CUMPLIMIENTO ---
+# --- PESTAÑA 1: CUMPLIMIENTO (LÓGICA FILTRADA) ---
 with tab1:
     try:
         df_av = cargar_datos(ID_AVANCE, anio_global)
@@ -63,26 +62,52 @@ with tab1:
         
         with st.sidebar:
             st.divider()
-            st.subheader("Filtros Avance")
             mes_sel = st.selectbox("Mes de Análisis:", ["AÑO COMPLETO"] + cols_activos)
 
+        periodo_txt = f"{anio_global}" if mes_sel == "AÑO COMPLETO" else f"{mes_sel.upper()} {anio_global}"
         cols_f = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
         datos_periodo = df_av[cols_f]
 
-        # KPIs Globales
-        mask_evaluables = datos_periodo.isin([1, 2, 3, 4, 5])
-        total_evaluables = mask_evaluables.sum().sum()
+        # --- CÁLCULO DE % EXCLUYENDO 8 Y 9 ---
+        # Solo consideramos celdas con valores del 1 al 5 (estados de gestión real)
+        mask_gestion_real = datos_periodo.isin([1, 2, 3, 4, 5])
+        total_casos_reales = mask_gestion_real.sum().sum()
         total_cumple = (datos_periodo == 5).sum().sum()
-        porc_cumplimiento = (total_cumple / total_evaluables * 100) if total_evaluables > 0 else 0
+        
+        porc_cumplimiento = (total_cumple / total_casos_reales * 100) if total_casos_reales > 0 else 0
 
-        st.header(f"Gestión de Cumplimiento - {anio_global}")
+        # Empresas al día (No tiene 1,2,3,4 y tiene al menos un 5 en el periodo)
+        tiene_fallo = datos_periodo.isin([1, 2, 3, 4]).any(axis=1)
+        tiene_exito = (datos_periodo == 5).any(axis=1)
+        al_dia = (tiene_exito & ~tiene_fallo).sum()
+
+        st.header(f"Gestión de Cumplimiento - {periodo_txt}")
+        
+        # KPIs Principales
         k1, k2, k3 = st.columns(3)
         k1.metric("Empresas Totales", len(df_av))
-        k2.metric("% Cumplimiento Real", f"{porc_cumplimiento:.1f}%")
-        k3.metric("Casos 'No Cumple'", (datos_periodo == 4).sum().sum())
-        
+        k2.metric("% Cumplimiento Real", f"{porc_cumplimiento:.1f}%", help="Calculado solo sobre meses con gestión activa (Excluye 'No Corresponde' y 'Sin Info')")
+        k3.metric("Empresas al Día", al_dia)
+
         st.divider()
-        st.subheader("Evolución Mensual del Grupo")
+        
+        # Conteo por Estados
+        st.subheader("📊 Conteo de Estados en el Periodo")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("✅ Cumple", (datos_periodo == 5).sum().sum())
+        c2.metric("🔵 En Revisión", (datos_periodo == 2).sum().sum())
+        c3.metric("🟠 Carga Doc.", (datos_periodo == 1).sum().sum())
+        c4.metric("🟡 Observado", (datos_periodo == 3).sum().sum())
+        
+        c5, c6, c7, _ = st.columns(4)
+        c5.metric("🔴 No Cumple", (datos_periodo == 4).sum().sum())
+        c6.metric("⚪ Sin Info", (datos_periodo == 8).sum().sum())
+        c7.metric("🟤 No Corresp.", (datos_periodo == 9).sum().sum())
+
+        st.divider()
+        
+        # Evolución
+        st.subheader("📈 Evolución Mensual")
         resumen_evo = []
         for m in cols_activos:
             counts = df_av[m].value_counts()
@@ -91,80 +116,41 @@ with tab1:
         st.plotly_chart(px.bar(pd.DataFrame(resumen_evo), x='Mes', y='Cant', color='Estado', color_discrete_map=colores_mapa, barmode='stack'), use_container_width=True)
 
         st.divider()
-        # --- AQUÍ ESTÁ LO QUE SE HABÍA PERDIDO: DETALLE POR EMPRESA ---
-        st.subheader("🎯 Detalle Específico por Empresa")
-        emp_sel = st.selectbox("Seleccione una empresa para ver su detalle:", ["SELECCIONAR..."] + sorted(list(df_av["Empresa"].unique())))
+        # Zoom por Empresa
+        st.subheader("🎯 Detalle Individual")
+        emp_sel = st.selectbox("Seleccione Empresa:", ["SELECCIONAR..."] + sorted(list(df_av["Empresa"].unique())))
 
         if emp_sel != "SELECCIONAR...":
             row_emp = df_av[df_av["Empresa"] == emp_sel][cols_f].iloc[0]
-            detalle_data = []
-            for mes, cod in row_emp.items():
-                detalle_data.append({'Mes': mes.upper(), 'Estado': mapa_estados.get(int(cod), "Otro")})
-            df_det = pd.DataFrame(detalle_data)
-            
+            df_det = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_estados.get(int(c), "Otro")} for m, c in row_emp.items()])
             d1, d2 = st.columns([1, 2])
             with d1:
-                fig_p = px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa, title=f"Distribución: {emp_sel}")
-                fig_p.update_traces(textinfo='percent')
-                st.plotly_chart(fig_p, use_container_width=True)
+                st.plotly_chart(px.pie(df_det, names='Estado', hole=.4, color='Estado', color_discrete_map=colores_mapa), use_container_width=True)
             with d2:
-                st.markdown(f"**Estados mensuales para {emp_sel}:**")
                 st.table(df_det.set_index('Mes').T)
 
-    except Exception as e: st.error(f"Error en Pestaña 1: {e}")
+    except Exception as e: st.error(f"Error: {e}")
 
 # --- PESTAÑA 2: EMPRESAS ---
 with tab2:
-    st.header("Detalle de Empresas y Contratos")
-    try:
-        st.dataframe(cargar_datos(ID_EMPRESAS, "Hoja 1"), use_container_width=True)
-    except: st.warning("Hoja de empresas no encontrada.")
+    st.header("Base de Datos Empresas")
+    try: st.dataframe(cargar_datos(ID_EMPRESAS, "Hoja 1"), use_container_width=True)
+    except: st.warning("No se encontró la hoja de empresas.")
 
-# --- PESTAÑA 3: COLABORADORES ---
+# --- PESTAÑA 3: COLABORADORES (BLOQUEO 2025) ---
 with tab3:
-    st.header(f"Análisis de Dotación - {anio_global}")
-    meses_abrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-    
-    with st.sidebar:
-        st.divider()
-        st.subheader("Filtros Masa Colaboradores")
-        mes_colab = st.selectbox("Seleccione Mes Masa:", ["AÑO COMPLETO"] + meses_abrev)
-        anio_corto = anio_global[-2:]
-
-    try:
-        if mes_colab == "AÑO COMPLETO":
-            list_df = []
-            for m in meses_abrev:
-                try: list_df.append(cargar_datos(ID_COLABORADORES, f"{m}{anio_corto}"))
-                except: continue
-            df_staff = pd.concat(list_df, ignore_index=True).drop_duplicates(subset=['Rut Trabajador'])
-        else:
-            df_staff = cargar_datos(ID_COLABORADORES, f"{mes_colab}{anio_corto}")
-
-        df_staff.columns = df_staff.columns.str.strip()
-        empresas_list = sorted(df_staff['Razón Social'].unique())
-        emp_sel_tab3 = st.multiselect("Filtrar por Empresa (Masa):", empresas_list, default=empresas_list)
-        df_final = df_staff[df_staff['Razón Social'].isin(emp_sel_tab3)]
-
-        if not df_final.empty:
-            c1, c2, c3, c4 = st.columns(4)
-            tot = len(df_final)
-            fem = len(df_final[df_final['Genero'].str.contains('Femenino', case=False, na=False)])
-            ext = len(df_final[~df_final['Nacionalidad'].str.contains('Chile', case=False, na=False)])
-            hhe = pd.to_numeric(df_final['Total Horas Extra'], errors='coerce').sum() if 'Total Horas Extra' in df_final.columns else 0
-
-            c1.metric("Dotación", tot)
-            c2.metric("% Femenino", f"{(fem/tot*100):.1f}%")
-            c3.metric("Extranjeros", ext)
-            c4.metric("Total HH.EE", f"{hhe:,.0f}")
-
+    if anio_global == "2025":
+        st.warning("⚠️ Sin datos de Masa Laboral para 2025.")
+    else:
+        st.header(f"Análisis de Dotación - {anio_global}")
+        meses_abrev = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+        with st.sidebar:
             st.divider()
-            g1, g2 = st.columns(2)
-            with g1: st.plotly_chart(px.pie(df_final, names='Genero', hole=0.4, title="Género"), use_container_width=True)
-            with g2: st.plotly_chart(px.bar(df_final['Tipo Contrato'].value_counts().reset_index(), x='Tipo Contrato', y='count', title="Contratos"), use_container_width=True)
-        else:
-            st.info("Seleccione empresas para ver KPIs.")
-    except: st.info(f"No hay datos de colaboradores para {mes_colab}{anio_corto}.")
+            mes_colab = st.selectbox("Mes Masa:", ["AÑO COMPLETO"] + meses_abrev)
+            anio_corto = anio_global[-2:]
+
+        try:
+            if mes_colab == "
 
 # Pie de página
 st.markdown("---")
