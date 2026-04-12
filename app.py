@@ -4,13 +4,13 @@ import plotly.express as px
 from datetime import datetime
 import requests
 
-# 1. CONFIGURACIÓN
+# 1. CONFIGURACIÓN Y LLAVE MAESTRA
 st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="🛡️")
 
 # Estilo para ocultar menús de sistema
 st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
-# URL DE TU APPS SCRIPT
+# URL DE TU APPS SCRIPT (Asegúrate de que sea la última que implementaste)
 URL_MI_SCRIPT = "https://script.google.com/a/macros/cysasociados.cl/s/AKfycbwi-UFcqZPZFmvA_80Naul4hHoJJAgUd8htMkJUmCpnGs_BAweZVOFFzclWQczMQXbq/exec"
 
 if "log_accesos" not in st.session_state:
@@ -38,7 +38,7 @@ def check_password():
         st.markdown("<br><br>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            st.title("🔐 Acceso Control Laboral")
+            st.title("🔐 Acceso Control Laboral CMSG")
             pwd_input = st.text_input("Contraseña:", type="password").strip()
             if st.button("Ingresar"):
                 df_u = cargar_datos(ID_USUARIOS, "Usuarios")
@@ -102,12 +102,12 @@ with tabs[0]:
             mes_sel = st.selectbox("Mes de Análisis:", ["AÑO COMPLETO"] + cols_activos)
 
         # --- INDICADORES SUPERIORES (KPIs) ---
-        st.header(f"Gestión de Cumplimiento - {anio_global}")
+        st.header(f"Control de Cumplimiento Laboral CMSG - {anio_global}")
         
         cols_kpi = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
         datos_kpi = df_f[cols_kpi]
         
-        # Matemática de cumplimiento (Ignora estado 9)
+        # Matemática de cumplimiento (Excluye estado 9)
         mask_real = datos_kpi.isin([1, 2, 3, 4, 5])
         total_real = mask_real.sum().sum()
         total_cumple = (datos_kpi == 5).sum().sum()
@@ -116,7 +116,6 @@ with tabs[0]:
         k1, k2, k3 = st.columns(3)
         k1.metric("Unidades Auditadas", len(df_f))
         k2.metric("% Cumplimiento Real", f"{porc_cumple:.1f}%")
-        # Empresas al día: Tienen al menos un 5 y NO tienen ningún 1,2,3,4 en el periodo
         al_dia = ( (datos_kpi == 5).any(axis=1) & ~datos_kpi.isin([1, 2, 3, 4]).any(axis=1) ).sum()
         k3.metric("Empresas al Día", al_dia)
 
@@ -158,43 +157,48 @@ with tabs[0]:
                 if not df_eecc.empty and "ID_Carpeta" in df_eecc.columns:
                     match_emp = df_eecc[df_eecc['Empresa'] == emp_v]
                     if not match_emp.empty:
-                        id_carpeta = match_emp['ID_Carpeta'].iloc[0]
+                        # Limpiamos el ID por si tiene espacios
+                        id_carpeta = str(match_emp['ID_Carpeta'].iloc[0]).strip()
                         mm = dic_mm.get(mes_sel.lower())
                         nombre_pdf = f"Certificado.{mm}{anio_global}"
-                        if st.button(f"🔍 Buscar PDF {mes_sel}"):
+                        
+                        if st.button(f"🔍 Buscar Certificado {mes_sel}"):
                             with st.spinner("Consultando Drive..."):
                                 try:
-                                    res = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_pdf}&carpeta={id_carpeta}")
-                                    if "http" in res.text:
-                                        st.success("¡Encontrado!")
-                                        st.link_button("📥 Descargar PDF", res.text)
-                                    else: st.error("No encontrado. Revise nombre.")
-                                except: st.error("Error de conexión.")
+                                    res = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_pdf}&carpeta={id_carpeta}", timeout=10)
+                                    resultado = res.text.strip()
+                                    
+                                    if resultado.startswith("http"):
+                                        st.success("¡Documento encontrado!")
+                                        st.link_button("📥 Descargar PDF", resultado)
+                                    else:
+                                        # AQUÍ EL MENSAJE QUE PEDISTE
+                                        st.warning("⚠️ Certificado No Disponible")
+                                except:
+                                    st.error("Error de conexión con el servidor de Google.")
                 else: st.error("Falta columna 'ID_Carpeta' en Empresas.")
             else: st.info("Elija un mes para descargar.")
 
         st.divider()
         
-        # GRÁFICO INDIVIDUAL PIE Y TABLA
+        # --- GRÁFICO INDIVIDUAL PIE Y TABLA ---
         st.subheader(f"Distribución de Estados: {emp_v}")
         cols_g = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
         df_p = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_e.get(int(row_emp[m]), "Sin Datos") if pd.notna(row_emp[m]) else "Sin Datos"} for m in cols_g])
         st.plotly_chart(px.pie(df_p, names='Estado', hole=.4, color='Estado', color_discrete_map=colores), use_container_width=True)
         st.table(df_p.set_index('Mes').T)
 
-# --- TAB 2: BASE MAESTRA ---
+# --- TAB 2, 3 y 4 SE MANTIENEN IGUAL ---
 if rol != "USUARIO":
     with tabs[1]:
         st.header("🏢 Base de Datos Empresas")
-        st.info("Utilice esta tabla para verificar los IDs de carpeta cargados.")
         st.dataframe(df_eecc, use_container_width=True)
 
-# --- TAB 3: MASA LABORAL ---
 idx_m = 1 if rol == "USUARIO" else 2
 with tabs[idx_m]:
-    if anio_global == "2025": st.warning("⚠️ Datos de Masa no disponibles para 2025.")
+    if anio_global == "2025": st.warning("⚠️ Datos no disponibles.")
     else:
-        st.header("👥 Dotación de Personal")
+        st.header("👥 Dotación")
         mes_m = st.sidebar.selectbox("Mes Masa:", ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"])
         df_s = cargar_datos(ID_COLABORADORES, f"{mes_m}{anio_global[-2:]}")
         if not df_s.empty:
@@ -202,13 +206,10 @@ with tabs[idx_m]:
             st.metric("Dotación Total", len(df_f_m))
             st.plotly_chart(px.pie(df_f_m, names='Genero', hole=0.4, title="Género"), use_container_width=True)
 
-# --- TAB 4: ADMINISTRACIÓN ---
 if rol == "ADMIN":
     with tabs[3]:
         st.header("⚙️ Administración")
-        st.subheader("📅 Log de Accesos")
         if st.session_state["log_accesos"]: st.table(pd.DataFrame(st.session_state["log_accesos"]))
-        st.subheader("👥 Usuarios del Sistema")
         st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
 # Pie de página
