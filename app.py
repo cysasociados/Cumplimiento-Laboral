@@ -10,7 +10,7 @@ st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="
 # Estilo para ocultar menús de sistema
 st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
-# URL DE TU APPS SCRIPT (Asegúrate de que sea la última que implementaste)
+# URL DE TU APPS SCRIPT
 URL_MI_SCRIPT = "https://script.google.com/a/macros/cysasociados.cl/s/AKfycbwi-UFcqZPZFmvA_80Naul4hHoJJAgUd8htMkJUmCpnGs_BAweZVOFFzclWQczMQXbq/exec"
 
 if "log_accesos" not in st.session_state:
@@ -107,7 +107,7 @@ with tabs[0]:
         cols_kpi = [mes_sel] if mes_sel != "AÑO COMPLETO" else cols_activos
         datos_kpi = df_f[cols_kpi]
         
-        # Matemática de cumplimiento (Excluye estado 9)
+        # Matemática de cumplimiento
         mask_real = datos_kpi.isin([1, 2, 3, 4, 5])
         total_real = mask_real.sum().sum()
         total_cumple = (datos_kpi == 5).sum().sum()
@@ -118,6 +118,15 @@ with tabs[0]:
         k2.metric("% Cumplimiento Real", f"{porc_cumple:.1f}%")
         al_dia = ( (datos_kpi == 5).any(axis=1) & ~datos_kpi.isin([1, 2, 3, 4]).any(axis=1) ).sum()
         k3.metric("Empresas al Día", al_dia)
+
+        # --- NUEVO: INDICADORES POR ESTADO ---
+        st.subheader("📊 Resumen de Estados (Periodo Seleccionado)")
+        ind1, ind2, ind3, ind4, ind5 = st.columns(5)
+        ind1.metric("✅ Cumple", (datos_kpi == 5).sum().sum())
+        ind2.metric("🔵 Revisión", (datos_kpi == 2).sum().sum())
+        ind3.metric("🟠 Carga", (datos_kpi == 1).sum().sum())
+        ind4.metric("🟡 Observado", (datos_kpi == 3).sum().sum())
+        ind5.metric("🔴 No Cumple", (datos_kpi == 4).sum().sum())
 
         st.divider()
 
@@ -157,7 +166,6 @@ with tabs[0]:
                 if not df_eecc.empty and "ID_Carpeta" in df_eecc.columns:
                     match_emp = df_eecc[df_eecc['Empresa'] == emp_v]
                     if not match_emp.empty:
-                        # Limpiamos el ID por si tiene espacios
                         id_carpeta = str(match_emp['ID_Carpeta'].iloc[0]).strip()
                         mm = dic_mm.get(mes_sel.lower())
                         nombre_pdf = f"Certificado.{mm}{anio_global}"
@@ -167,15 +175,13 @@ with tabs[0]:
                                 try:
                                     res = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_pdf}&carpeta={id_carpeta}", timeout=10)
                                     resultado = res.text.strip()
-                                    
                                     if resultado.startswith("http"):
                                         st.success("¡Documento encontrado!")
                                         st.link_button("📥 Descargar PDF", resultado)
                                     else:
-                                        # AQUÍ EL MENSAJE QUE PEDISTE
                                         st.warning("⚠️ Certificado No Disponible")
                                 except:
-                                    st.error("Error de conexión con el servidor de Google.")
+                                    st.error("Error de conexión con Drive.")
                 else: st.error("Falta columna 'ID_Carpeta' en Empresas.")
             else: st.info("Elija un mes para descargar.")
 
@@ -188,7 +194,7 @@ with tabs[0]:
         st.plotly_chart(px.pie(df_p, names='Estado', hole=.4, color='Estado', color_discrete_map=colores), use_container_width=True)
         st.table(df_p.set_index('Mes').T)
 
-# --- TAB 2, 3 y 4 SE MANTIENEN IGUAL ---
+# --- LAS DEMÁS PESTAÑAS SE MANTIENEN IGUAL ---
 if rol != "USUARIO":
     with tabs[1]:
         st.header("🏢 Base de Datos Empresas")
@@ -212,6 +218,5 @@ if rol == "ADMIN":
         if st.session_state["log_accesos"]: st.table(pd.DataFrame(st.session_state["log_accesos"]))
         st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
-# Pie de página
 st.markdown("---")
 st.caption("Sistema de gestión de datos en tiempo real, desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
