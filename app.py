@@ -12,7 +12,7 @@ def check_password():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             st.title("🔐 Acceso Restringido")
-            st.info("Bienvenido a Control Laboral CMSG. Por favor, ingrese su clave.")
+            st.info("Bienvenido a Control Laboral CMSG. Favor ingrese su clave.")
             password = st.text_input("Contraseña:", type="password")
             if st.button("Ingresar"):
                 if password == "CMSG2026":
@@ -150,7 +150,32 @@ with tab3:
             anio_corto = anio_global[-2:]
 
         try:
-            if mes_colab == "
+            if mes_colab == "AÑO COMPLETO":
+                list_df = [cargar_datos(ID_COLABORADORES, f"{m}{anio_corto}") for m in meses_abrev if True] # Simplificado
+                df_staff = pd.concat(list_df, ignore_index=True).drop_duplicates(subset=['Rut Trabajador'])
+            else:
+                df_staff = cargar_datos(ID_COLABORADORES, f"{mes_colab}{anio_corto}")
+
+            df_staff.columns = df_staff.columns.str.strip()
+            # Filtro Empresa Tab 3
+            e_list = sorted(df_staff['Razón Social'].unique())
+            e_sel = st.multiselect("Filtrar EECC:", e_list, default=e_list)
+            df_f = df_staff[df_staff['Razón Social'].isin(e_sel)]
+
+            if not df_f.empty:
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("Dotación", len(df_f))
+                fem = len(df_f[df_f['Genero'].str.contains('Femenino', case=False, na=False)])
+                m2.metric("% Fem", f"{(fem/len(df_f)*100):.1f}%")
+                ext = len(df_f[~df_f['Nacionalidad'].str.contains('Chile', case=False, na=False)])
+                m3.metric("Extranjeros", ext)
+                hhe = pd.to_numeric(df_f['Total Horas Extra'], errors='coerce').sum() if 'Total Horas Extra' in df_f.columns else 0
+                m4.metric("HH.EE", f"{hhe:,.0f}")
+                
+                g1, g2 = st.columns(2)
+                with g1: st.plotly_chart(px.pie(df_f, names='Genero', hole=0.4, title="Género"), use_container_width=True)
+                with g2: st.plotly_chart(px.bar(df_f['Tipo Contrato'].value_counts().reset_index(), x='Tipo Contrato', y='count', title="Contratos"), use_container_width=True)
+        except: st.info("Seleccione un mes con datos.")
 
 # Pie de página
 st.markdown("---")
