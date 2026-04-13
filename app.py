@@ -20,110 +20,129 @@ def cargar_datos(sheet_id, nombre_pestana):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
         df = pd.read_csv(url)
-        # Limpieza de espacios en los nombres de columnas
-        df.columns = [str(c).strip() for c in df.columns]
+        # --- LIMPIEZA EXTREMA ---
+        # 1. Quitar el carácter invisible BOM si existe y pasar a mayúsculas
+        df.columns = df.columns.str.replace(r'[^\w\s]', '', regex=True).str.strip().str.upper()
+        # 2. Limpiar espacios dentro de los datos de texto
+        for col in df.select_dtypes(include=['object']).columns:
+            df[col] = df[col].astype(str).str.strip().str.upper()
         return df.dropna(how='all')
-    except:
+    except Exception as e:
+        st.error(f"Error al cargar: {e}")
         return pd.DataFrame()
 
-# --- 2. LOGIN INTELIGENTE ---
+# --- 2. LOGIN ---
 if "authenticated" not in st.session_state:
     st.title("🔐 Acceso Auditoría CMSG")
     pwd = st.text_input("Contraseña:", type="password")
     if st.button("Entrar"):
         df_u = cargar_datos(ID_USUARIOS, "Usuarios")
-        # Buscamos columna de clave (sin importar si es mayúscula o minúscula)
-        col_c = [c for c in df_u.columns if 'CLAVE' in c.upper() or 'PASS' in c.upper()][0]
-        match = df_u[df_u[col_c].astype(str) == pwd.strip()]
-        if not match.empty:
-            st.session_state["authenticated"] = True
-            st.session_state["u_nom"] = match.iloc[0].get('Nombre', 'Usuario')
-            st.session_state["u_emp"] = match.iloc[0].get('Empresa', '')
-            st.session_state["u_rol"] = match.iloc[0].get('Rol', 'ADMIN')
-            st.rerun()
-        else: st.error("Clave incorrecta")
+        if not df_u.empty:
+            # Buscamos la columna de clave (seguro es CLAVE ahora)
+            col_c = [c for c in df_u.columns if 'CLAVE' in c or 'PASS' in c][0]
+            match = df_u[df_u[col_c].astype(str) == pwd.strip().upper()]
+            if not match.empty:
+                st.session_state["authenticated"] = True
+                st.session_state["u_nom"] = match.iloc[0].get('NOMBRE', 'Usuario')
+                st.session_state["u_emp"] = match.iloc[0].get('EMPRESA', '')
+                st.session_state["u_rol"] = match.iloc[0].get('ROL', 'ADMIN')
+                st.rerun()
+            else: st.error("Clave incorrecta")
     st.stop()
 
-# --- 3. CARGA Y DETECCIÓN AUTOMÁTICA (EL RADAR) ---
-anio = st.sidebar.selectbox("Seleccione Año", ["2026", "2025"])
+# --- 3. CARGA DE ARCHIVOS ---
+anio = st.sidebar.selectbox("Año", ["2026", "2025"])
 df_av = cargar_datos(ID_AVANCE, anio)
 df_id = cargar_datos(ID_EMPRESAS, "Hoja 1")
 
-# RADAR: Buscamos automáticamente las columnas que parecen meses
-meses_ref = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
-cols_meses = [c for c in df_av.columns if any(m in c.lower() for m in meses_ref)]
-# Buscamos la columna de empresa y observaciones por "parecido"
-col_empresa = [c for c in df_av.columns if 'EMP' in c.upper()][0]
-col_obs = [c for c in df_av.columns if 'OBS' in c.upper()]
+# --- 4. DETECCIÓN DE COLUMNAS (EL RADAR MEJORADO) ---
+# Definimos los meses exactos para no confundirnos con "Observaciones"
+meses_reales = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
+cols_meses = [c for c in df_av.columns if c in meses_reales]
 
-# --- 4. LAS 4 PESTAÑAS ---
+# Buscamos Empresa y Observaciones por "aproximación"
+col_empresa = next((c for c in df_av.columns if 'EMP' in c), df_av.columns[0])
+col_obs = next((c for c in df_av.columns if 'OBS' in c), None)
+
+# --- 5. INTERFAZ ---
 tabs = st.tabs(["📈 Avance Laboral", "🏢 Base IDs", "👥 Masa Laboral", "⚙️ Log"])
 
 with tabs[0]:
     if not df_av.empty:
-        # Filtro por empresa según el usuario
         df_f = df_av[df_av[col_empresa] == st.session_state["u_emp"]] if st.session_state["u_rol"] == "USUARIO" else df_av
         
         st.header(f"Gestión de Auditoría - {anio}")
         
-        # KPIs DINÁMICOS (No usan nombres fijos)
+        # KPIs
         df_num = df_f[cols_meses].apply(pd.to_numeric, errors='coerce')
         cumple = (df_num == 5).sum().sum()
         total = df_num.isin([1,2,3,4,5]).sum().sum()
         
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Unidades", len(df_f))
-        k2.metric("Cumplimiento OK", int(cumple))
-        k3.metric("% Avance", f"{(cumple/total*100 if total > 0 else 0):.1f}%")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Unidades", len(df_f))
+        c2.metric("Cumplimiento OK", int(cumple))
+        c3.metric("% Avance", f"{(cumple/total*100 if total > 0 else 0):.1f}%")
 
         st.divider()
 
-        # Detalle y PDF
-        emp_sel = st.selectbox("Empresa Seleccionada:", sorted(df_f[col_empresa].unique()))
+        # Detalle Empresa
+        emp_sel = st.selectbox("Seleccione Empresa:", sorted(df_f[col_empresa].unique()))
         row = df_f[df_f[col_empresa] == emp_sel].iloc[0]
         
-        c_info, c_pdf = st.columns([2, 1])
-        with c_info:
-            st.subheader("📝 Observaciones Actuales")
-            st.warning(row[col_obs[0]] if col_obs and pd.notna(row[col_obs[0]]) else "Sin observaciones pendientes.")
+        c_txt, c_btn = st.columns([2, 1])
+        with c_txt:
+            st.subheader("📝 Observaciones")
+            if col_obs:
+                st.warning(row[col_obs] if pd.notna(row[col_obs]) else "Sin observaciones.")
             
-        with c_pdf:
-            st.subheader("📄 Descarga PDF")
-            mes_descarga = st.selectbox("Elegir Mes:", cols_meses)
-            if st.button("🔍 Obtener Archivo"):
-                # Buscamos el ID de carpeta en el otro archivo
-                c_id_folder = [c for c in df_id.columns if 'CARPETA' in c.upper() or 'ID' in c.upper()][0]
-                c_id_emp = [c for c in df_id.columns if 'EMP' in c.upper()][0]
-                match_id = df_id[df_id[c_id_emp].astype(str).str.contains(emp_sel, case=False, na=False)]
+        with c_btn:
+            st.subheader("📄 Certificado")
+            mes_pdf = st.selectbox("Elegir Mes:", cols_meses)
+            if st.button("🔍 Obtener PDF"):
+                # Buscar ID en ID_Empresas
+                c_id_f = next((c for c in df_id.columns if 'CARPETA' in c or 'ID' in c), None)
+                c_id_e = next((c for c in df_id.columns if 'EMP' in c), None)
+                match_id = df_id[df_id[c_id_e].str.contains(emp_sel, case=False, na=False)]
                 
-                if not match_id.empty:
-                    id_f = match_id.iloc[0][c_id_folder]
-                    # Calculamos el número del mes según su posición en la lista detectada
-                    num_m = str(cols_meses.index(mes_descarga) + 1).zfill(2)
-                    nombre_f = f"Certificado.{num_m}{anio}"
-                    r = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_f}&carpeta={id_f}")
+                if not match_id.empty and c_id_f:
+                    id_folder = match_id.iloc[0][c_id_f]
+                    mm = str(meses_reales.index(mes_pdf) + 1).zfill(2)
+                    nombre_archivo = f"Certificado.{mm}{anio}"
+                    r = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_archivo}&carpeta={id_folder}")
                     if r.text.startswith("http"):
                         st.success("¡Encontrado!")
-                        st.link_button("📥 Descargar PDF", r.text.strip())
-                    else: st.error("No se encontró el archivo en Drive")
-                else: st.error("Esta empresa no tiene ID de carpeta configurado")
+                        st.link_button("📥 Descargar", r.text.strip())
+                    else: st.error("No disponible")
+                else: st.error("Configuración faltante")
 
-        # GRÁFICO CIRCULAR (RESUMEN INDIVIDUAL)
+        # --- EL GRÁFICO CIRCULAR ---
         st.divider()
-        st.subheader(f"Resumen Visual: {emp_sel}")
+        st.subheader(f"Distribución de Estados: {emp_sel}")
         mapa_pie = {1:"Carga", 2:"Revisión", 3:"Obs", 4:"No Cumple", 5:"Cumple"}
-        pie_data = pd.DataFrame([{'Estado': mapa_pie.get(int(row[m]), "S/I") if pd.notna(row[m]) else "S/I"} for m in cols_meses])
-        st.plotly_chart(px.pie(pie_data, names='Estado', hole=.4, 
-                             color_discrete_map={"Cumple":"#00FF00","Obs":"#FFFF00","No Cumple":"#FF0000","Revisión":"#1E90FF","Carga":"#FF8C00","S/I":"#555555"}), 
-                             use_container_width=True)
+        # Construimos los datos para el gráfico con cuidado
+        datos_pie = []
+        for m in cols_meses:
+            val = row[m]
+            if pd.notna(val):
+                try:
+                    estado_txt = mapa_pie.get(int(float(val)), "S/I")
+                    datos_pie.append({'Estado': estado_txt})
+                except:
+                    datos_pie.append({'Estado': "S/I"})
+        
+        if datos_pie:
+            df_p = pd.DataFrame(datos_pie)
+            fig = px.pie(df_p, names='Estado', hole=.4, 
+                        color_discrete_map={"Cumple":"#00FF00","Obs":"#FFFF00","No Cumple":"#FF0000","Revisión":"#1E90FF","Carga":"#FF8C00","S/I":"#555555"})
+            st.plotly_chart(fig, use_container_width=True)
 
 with tabs[1]:
-    st.subheader("Base de Datos de Conexión")
     st.dataframe(df_id)
 
 with tabs[3]:
-    st.subheader("Registro de Actividad")
-    st.write("Sistema conectado y operando con detección dinámica de columnas.")
+    st.write("### Debug de Columnas (Para Sergio)")
+    st.write("La máquina está viendo estas columnas en el archivo de Avance:")
+    st.write(list(df_av.columns))
 
 # Pie de página
 st.markdown("---")
