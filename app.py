@@ -21,7 +21,6 @@ def cargar_datos(sheet_id, nombre_pestana):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
         df = pd.read_csv(url, encoding='utf-8-sig')
-        # Limpieza ácida de encabezados
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
     except:
@@ -36,7 +35,6 @@ if "authenticated" not in st.session_state:
         if not df_u.empty:
             col_c = next((c for c in df_u.columns if 'CLAVE' in c or 'PASS' in c), None)
             if col_c:
-                # Comparamos clave limpia
                 match = df_u[df_u[col_c].astype(str).str.strip().str.upper() == pwd.strip().upper()]
                 if not match.empty:
                     st.session_state["authenticated"] = True
@@ -47,7 +45,7 @@ if "authenticated" not in st.session_state:
                 else: st.error("Clave incorrecta")
     st.stop()
 
-# --- 3. PROCESAMIENTO ---
+# --- 3. CARGA DE DATOS ---
 anio = st.sidebar.selectbox("Año", ["2026", "2025"])
 df_av = cargar_datos(ID_AVANCE, anio)
 df_id = cargar_datos(ID_EMPRESAS, "HOJA1")
@@ -58,7 +56,6 @@ cols_meses = [c for c in df_av.columns if c in meses_reales]
 # --- 4. INTERFAZ ---
 st.header(f"Gestión de Auditoría - {anio}")
 
-# KPIs
 df_f = df_av[df_av.iloc[:,0] == st.session_state["u_emp"]] if st.session_state["u_rol"] == "USUARIO" else df_av
 df_num = df_f[cols_meses].apply(pd.to_numeric, errors='coerce')
 cumple = (df_num == 5).sum().sum()
@@ -71,7 +68,6 @@ c3.metric("% Avance", f"{(cumple/total*100 if total > 0 else 0):.1f}%")
 
 st.divider()
 
-# Búsqueda
 col_empresa = next((c for c in df_av.columns if 'EMP' in c), df_av.columns[0])
 emp_sel = st.selectbox("Seleccione Empresa:", sorted(df_f[col_empresa].unique()))
 row = df_f[df_f[col_empresa] == emp_sel].iloc[0]
@@ -86,23 +82,24 @@ with cb:
     st.subheader("📄 Certificado")
     mes_pdf = st.selectbox("Elegir Mes:", cols_meses)
     
-    # Lógica de construcción de nombre
+    # Lógica de construcción de nombre (AHORA CON .pdf)
     mm = str(meses_reales.index(mes_pdf) + 1).zfill(2)
-    nombre_archivo = f"Certificado.{mm}{anio}"
+    nombre_archivo = f"Certificado.{mm}{anio}.pdf"
     
     if st.button("Obtener PDF"):
-        # Buscar ID Carpeta
         c_id_f = next((c for c in df_id.columns if 'CARPETA' in c or 'ID' in c), None)
         c_id_e = next((c for c in df_id.columns if 'EMP' in c), None)
         
-        # Match flexible de nombre de empresa
-        match_id = df_id[df_id[c_id_e].astype(str).str.contains(re.escape(emp_sel[:10]), case=False, na=False)]
+        # Limpieza para match exacto
+        emp_clean = re.sub(r'[^A-Z0-9]', '', str(emp_sel).upper())
+        df_id['MATCH_TEMP'] = df_id[c_id_e].apply(lambda x: re.sub(r'[^A-Z0-9]', '', str(x).upper()))
+        match_id = df_id[df_id['MATCH_TEMP'] == emp_clean]
         
         if not match_id.empty and c_id_f:
             id_folder = str(match_id.iloc[0][c_id_f]).strip()
             
-            # --- DEPUREACIÓN (Solo para Sergio) ---
-            st.caption(f"🔍 Buscando: `{nombre_archivo}` en Carpeta: `{id_folder}`")
+            # Debug para Sergio
+            st.caption(f"🔍 Buscando: `{nombre_archivo}`")
             
             try:
                 r = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_archivo}&carpeta={id_folder}", timeout=10)
@@ -110,10 +107,10 @@ with cb:
                     st.success("¡Encontrado!")
                     st.link_button("📥 Descargar", r.text.strip())
                 else:
-                    st.error(f"No disponible")
-                    st.info("💡 Consejo: Revisa que el archivo en Drive se llame EXACTAMENTE igual (ej: Certificado.122025.pdf o Certificado.122025)")
+                    st.error("No disponible")
+                    st.info(f"El sistema buscó `{nombre_archivo}` pero Drive no lo devolvió. Verifica que el nombre sea exacto.")
             except:
-                st.error("Error de conexión con el servidor de archivos.")
+                st.error("Error de conexión.")
         else:
             st.error("Empresa no vinculada en base de IDs.")
 
