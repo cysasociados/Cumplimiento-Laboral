@@ -7,21 +7,20 @@ import re
 
 # 1. CONFIGURACIÓN E INTERFAZ
 st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="🛡️")
-st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;}</style>", unsafe_allow_html=True)
+st.markdown("<style>#MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 # URL DEL APPS SCRIPT (Puente a Drive)
 URL_MI_SCRIPT = "https://script.google.com/a/macros/cysasociados.cl/s/AKfycbwi-UFcqZPZFmvA_80Naul4hHoJJAgUd8htMkJUmCpnGs_BAweZVOFFzclWQczMQXbq/exec"
 
-# IDs DE GOOGLE SHEETS
-ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
-ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
+# IDs DE GOOGLE SHEETS (Los dos archivos con los que trabajamos)
+ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y" # Estado de Avance
+ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" # ID_Empresas
+
+# IDs Adicionales
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 
 # --- FUNCIONES DE LIMPIEZA ---
-def limpiar_col(c):
-    return re.sub(r'[^A-Z0-9]', '_', str(c).upper().strip())
-
 def limpiar_val(v):
     if pd.isna(v): return ""
     return re.sub(r'[^A-Z0-9]', '', str(v).upper().strip())
@@ -79,16 +78,20 @@ with st.sidebar:
 df_av = cargar_datos(ID_AVANCE, anio)
 df_id = cargar_datos(ID_EMPRESAS, "Hoja 1")
 
-# --- 4. PESTAÑAS (HILO CONDUCTOR) ---
+# Mapa de Colores Global
+mapa_txt = {1:"Carga", 2:"Revisión", 3:"Obs", 4:"No Cumple", 5:"Cumple", 8:"S/I", 9:"N/A"}
+col_map = {"Carga":"#FF8C00", "Revisión":"#1E90FF", "Obs":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "S/I":"#555555", "N/A":"#8B4513"}
+
+# --- 4. ESTRUCTURA DE 4 PESTAÑAS ---
 rol = st.session_state["u_rol"]
 if rol == "ADMIN":
-    tabs = st.tabs(["📈 Avance Laboral", "🏢 Base IDs", "👥 Masa Laboral", "⚙️ Log"])
+    tabs = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Laboral", "⚙️ Log de Transacciones"])
 elif rol == "REVISOR":
-    tabs = st.tabs(["📈 Avance Laboral", "🏢 Base IDs", "👥 Masa Laboral"])
+    tabs = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Laboral"])
 else:
     tabs = st.tabs(["📈 Mi Avance", "👥 Masa Laboral"])
 
-# --- TAB 1: AVANCE ---
+# --- TAB 1: AVANCE LABORAL (COMPLETO) ---
 with tabs[0]:
     if not df_av.empty:
         col_emp = encontrar_columna(df_av, "EMPRESA")
@@ -100,17 +103,17 @@ with tabs[0]:
 
         st.header(f"Gestión de Cumplimiento - {anio}")
         
-        # KPIs
+        # KPIs Superiores
         datos_kpi = df_f[cols_m] if mes_sel == "AÑO COMPLETO" else df_f[[mes_sel.lower()]]
-        cumple = (datos_kpi == 5).sum().sum()
+        cumple_count = (datos_kpi == 5).sum().sum()
         total_v = datos_kpi.isin([1,2,3,4,5]).sum().sum()
         
         k1, k2, k3 = st.columns(3)
-        k1.metric("Empresas", len(df_f))
-        k2.metric("Cumple", int(cumple))
-        k3.metric("% Avance", f"{(cumple/total_v*100 if total_v > 0 else 0):.1f}%")
+        k1.metric("Empresas Auditadas", len(df_f))
+        k2.metric("Certificados OK", int(cumple_count))
+        k3.metric("% Avance Real", f"{(cumple_count/total_v*100 if total_v > 0 else 0):.1f}%")
 
-        # Conteo de Estados
+        # Conteo por Estados
         st.subheader("📊 Conteo por Estados")
         c1, c2, c3, c4, c5 = st.columns(5)
         c1.metric("✅ Cumple", (datos_kpi == 5).sum().sum())
@@ -121,71 +124,79 @@ with tabs[0]:
 
         st.divider()
 
-        # Evolución (Barras)
+        # Gráfico de Barras Evolución
         if rol != "USUARIO":
-            st.subheader("📈 Evolución del Grupo")
+            st.subheader("📈 Evolución Mensual del Grupo")
             res_evo = []
-            mapa = {1:"Carga", 2:"Revisión", 3:"Obs", 4:"No Cumple", 5:"Cumple"}
-            col_m = {"Carga":"#FF8C00", "Revisión":"#1E90FF", "Obs":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00"}
             for m in cols_m:
                 counts = df_f[m].value_counts()
                 for k, v in counts.items():
-                    if k in mapa: res_evo.append({'Mes': m.upper(), 'Estado': mapa[k], 'Cantidad': v})
+                    if k in mapa_txt: res_evo.append({'Mes': m.upper(), 'Estado': mapa_txt[k], 'Cantidad': v})
             if res_evo:
-                st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=col_m, barmode='stack'), use_container_width=True)
+                st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=col_map, barmode='stack'), use_container_width=True)
 
         st.divider()
 
-        # Detalle y PDF
+        # Detalle, Hallazgos y Buscador PDF
         emp_sel = st.selectbox("Seleccione Empresa:", sorted(df_f[col_emp].unique())) if rol != "USUARIO" else st.session_state["u_emp"]
         row_e = df_f[df_f[col_emp] == emp_sel].iloc[0]
         
         ca, cb = st.columns([2, 1])
         with ca:
-            st.subheader("📝 Hallazgos")
+            st.subheader("📝 Hallazgos de Auditoría")
             col_o = encontrar_columna(df_av, "OBS")
-            st.warning(row_e[col_o] if col_o and pd.notna(row_e[col_o]) else "Sin observaciones.")
+            st.warning(row_e[col_o] if col_o and pd.notna(row_e[col_o]) else "Sin observaciones registradas.")
             
         with cb:
-            st.subheader("📄 Certificado")
-            if mes_sel == "AÑO COMPLETO": st.info("Elija un mes.")
+            st.subheader("📄 Certificado Digital")
+            if mes_sel == "AÑO COMPLETO": 
+                st.info("Elija un mes para descargar.")
             else:
-                # BUSCADOR PDF REFORZADO
-                col_id_emp = encontrar_columna(df_id, "EMPRESA")
-                col_folder = encontrar_columna(df_id, "CARPETA")
-                # Limpieza para match perfecto
-                df_id['KEY_MATCH'] = df_id[col_id_emp].apply(limpiar_val)
+                # Conexión Directa a ID_Empresas
+                df_id['KEY_MATCH'] = df_id[encontrar_columna(df_id, "EMPRESA")].apply(limpiar_val)
                 match = df_id[df_id['KEY_MATCH'] == limpiar_val(emp_sel)]
+                col_id_folder = encontrar_columna(df_id, "CARPETA")
                 
-                if not match.empty:
-                    id_f = str(match[col_folder].iloc[0]).strip()
-                    if id_f and id_f != 'nan':
+                if not match.empty and col_id_folder:
+                    id_f = str(match[col_id_folder].iloc[0]).strip()
+                    if id_f and id_f != 'nan' and len(id_f) > 10:
                         mm = str(meses_ab.index(mes_sel.lower()) + 1).zfill(2)
                         nombre_pdf = f"Certificado.{mm}{anio}"
-                        if st.button(f"🔍 Buscar PDF {mes_sel}"):
-                            with st.spinner("Buscando..."):
-                                r = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_pdf}&carpeta={id_f}")
-                                if r.text.startswith("http"):
-                                    st.success("¡Encontrado!")
-                                    st.link_button("📥 Descargar", r.text.strip())
-                                else: st.warning("⚠️ El archivo no existe en la carpeta de Drive.")
+                        if st.button(f"🔍 Buscar Certificado {mes_sel}"):
+                            with st.spinner("Buscando en Drive..."):
+                                try:
+                                    r = requests.get(f"{URL_MI_SCRIPT}?nombre={nombre_pdf}&carpeta={id_f}")
+                                    if r.text.startswith("http"):
+                                        st.success("¡Encontrado!")
+                                        st.link_button("📥 Descargar", r.text.strip())
+                                    else: st.warning("⚠️ No disponible en esta carpeta.")
+                                except: st.error("Error de conexión.")
                     else: st.error("❌ Esta empresa no tiene ID de Carpeta configurado.")
-                else: st.error("❌ Empresa no encontrada en la base de IDs.")
+                else: st.error("❌ Empresa no encontrada en ID_Empresas.")
 
-# --- OTRAS PESTAÑAS (BASE IDS, MASA, LOG) ---
+        # --- VOLVIÓ EL GRÁFICO CIRCULAR ---
+        st.divider()
+        st.subheader(f"🟢 Distribución de Estados: {emp_sel}")
+        df_pie = pd.DataFrame([{'Mes': m.upper(), 'Estado': mapa_txt.get(int(row_e[m]), "S/I") if pd.notna(row_emp := row_e[m]) else "S/I"} for m in (cols_m if mes_sel=="AÑO COMPLETO" else [mes_sel.lower()])])
+        st.plotly_chart(px.pie(df_pie, names='Estado', hole=.4, color='Estado', color_discrete_map=col_map), use_container_width=True)
+
+# --- TAB 2: KPIs EMPRESAS ---
 if rol != "USUARIO":
     with tabs[1]:
-        st.header("🏢 Base de Datos de IDs")
-        st.dataframe(df_id[[encontrar_columna(df_id, "EMPRESA"), encontrar_columna(df_id, "CARPETA")]], use_container_width=True)
+        st.header("🏢 Datos Maestros de Empresas")
+        st.dataframe(df_id, use_container_width=True)
 
+# --- TAB 3: MASA LABORAL ---
 with (tabs[2] if rol != "USUARIO" else tabs[1]):
-    st.header("👥 Masa Laboral")
-    st.info("Conecte el archivo de Colaboradores para ver la dotación.")
+    st.header("👥 Gestión de Masa Laboral")
+    st.info("Espacio reservado para el análisis de dotación de colaboradores.")
 
+# --- TAB 4: LOG DE TRANSACCIONES ---
 if rol == "ADMIN":
     with tabs[3]:
         st.header("⚙️ Registro de Actividad")
         st.table(pd.DataFrame(st.session_state["log_accesos"]))
+
 
 # Pie de página
 st.markdown("---")
