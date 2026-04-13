@@ -3,7 +3,7 @@ import requests
 
 # --- CONFIGURACIÓN ---
 # Asegúrate de que esta URL sea la de la NUEVA implementación
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFTw/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/library/d/1QS-c-O4GdV1OW5wuQaav4B2zfB8e0l9F5fEwaoUj8xqSkeFUyc62CrjW/1"
 
 ID_CARPETA_TOLEDO = "11UQVAgZhkaCjt7BUofsjPcf_HybC-Qi6"
 NOMBRE_ARCHIVO = "Certificado.122025.pdf"
