@@ -2,40 +2,38 @@ import streamlit as st
 import requests
 
 # --- CONFIGURACIÓN ---
-# ⚠️ PEGA AQUÍ LA NUEVA URL QUE COPIASTE EN EL PASO 2
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec"
+# ⚠️ PEGA AQUÍ TU NUEVA URL ENTRE LAS COMILLAS
+URL_APPS_SCRIPT = "https://script.google.com/macros/library/d/1QS-c-O4GdV1OW5wuQaav4B2zfB8e0l9F5fEwaoUj8xqSkeFUyc62CrjW/1"
 
 ID_CARPETA_TOLEDO = "11UQVAgZhkaCjt7BUofsjPcf_HybC-Qi6"
 NOMBRE_ARCHIVO = "Certificado.122025.pdf"
 
 st.set_page_config(page_title="Portal Auditoría", page_icon="🛡️")
 st.title("🛡️ Portal de Auditoría Laboral")
-st.subheader("Control de Documentos Drive")
 
 st.info(f"📁 Buscando: `{NOMBRE_ARCHIVO}`")
 
 if st.button("🚀 Consultar Documento"):
     with st.spinner("Conectando con Google Cloud..."):
         try:
-            # Enviamos la consulta limpia
+            # Enviamos la consulta
             res = requests.get(URL_APPS_SCRIPT, params={
                 "nombre": NOMBRE_ARCHIVO,
                 "carpeta": ID_CARPETA_TOLEDO
             }, timeout=20)
             
-            respuesta_servidor = res.text.strip()
-            
-            if respuesta_servidor.startswith("http"):
+            # Si el script devuelve el HTML de error de Google
+            if "DOCTYPE html" in res.text:
+                st.error("❌ ERROR DE PERMISOS EN GOOGLE")
+                st.warning("Debes entrar al Apps Script y en 'Gestionar implementaciones' poner 'Quién tiene acceso: Cualquier persona'.")
+            elif res.text.startswith("http"):
                 st.success("✅ ¡ARCHIVO LOCALIZADO!")
-                st.balloons()
-                st.link_button("📥 ABRIR / DESCARGAR CERTIFICADO", respuesta_servidor)
+                st.link_button("📥 DESCARGAR CERTIFICADO", res.text.strip())
             else:
-                st.error("❌ NO SE PUDO OBTENER EL ARCHIVO")
-                st.warning(f"Respuesta de Google: {respuesta_servidor}")
-                st.info("💡 RECOMENDACIÓN: Verifica que la CARPETA en Drive tenga el acceso compartido como 'Cualquier persona con el enlace puede leer'.")
+                st.error(f"Respuesta del servidor: {res.text}")
                 
         except Exception as e:
-            st.error(f"Hubo un fallo en la conexión: {str(e)}")
+            st.error(f"Fallo de conexión: {str(e)}")
 
 st.divider()
-st.caption("Conexión segura vía C&S Asociados Ltda.")
+st.caption("Prueba de enlace final - Sergio 2026")
