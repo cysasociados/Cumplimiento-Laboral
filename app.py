@@ -3,7 +3,7 @@ import requests
 
 # --- CONFIGURACIÓN ---
 # ⚠️ PEGA AQUÍ LA NUEVA URL QUE COPIASTE EN EL PASO 2
-URL_APPS_SCRIPT = https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec"
 
 ID_CARPETA_TOLEDO = "11UQVAgZhkaCjt7BUofsjPcf_HybC-Qi6"
 NOMBRE_ARCHIVO = "Certificado.122025.pdf"
