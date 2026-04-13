@@ -1,50 +1,41 @@
 import streamlit as st
 import requests
 
-# --- DATOS PROPORCIONADOS POR SERGIO ---
-URL_APPS_SCRIPT = "https://script.google.com/a/macros/cysasociados.cl/s/AKfycbwi-UFcqZPZFmvA_80Naul4hHoJJAgUd8htMkJUmCpnGs_BAweZVOFFzclWQczMQXbq/exec"
+# --- CONFIGURACIÓN ---
+# ⚠️ PEGA AQUÍ LA NUEVA URL QUE COPIASTE EN EL PASO 2
+URL_APPS_SCRIPT = https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec
+
 ID_CARPETA_TOLEDO = "11UQVAgZhkaCjt7BUofsjPcf_HybC-Qi6"
 NOMBRE_ARCHIVO = "Certificado.122025.pdf"
 
-st.title("🧪 Test de Conexión Directa a Drive")
-st.write(f"**Empresa:** TOLEDO GANZO")
-st.write(f"**Archivo buscado:** `{NOMBRE_ARCHIVO}`")
-st.write(f"**ID Carpeta:** `{ID_CARPETA_TOLEDO}`")
+st.set_page_config(page_title="Portal Auditoría", page_icon="🛡️")
+st.title("🛡️ Portal de Auditoría Laboral")
+st.subheader("Control de Documentos Drive")
 
-st.divider()
+st.info(f"📁 Buscando: `{NOMBRE_ARCHIVO}`")
 
-if st.button("🚀 Ejecutar Prueba de Descarga"):
-    with st.spinner("Consultando con Google Drive..."):
+if st.button("🚀 Consultar Documento"):
+    with st.spinner("Conectando con Google Cloud..."):
         try:
-            # Construimos la URL de consulta
-            params = {
+            # Enviamos la consulta limpia
+            res = requests.get(URL_APPS_SCRIPT, params={
                 "nombre": NOMBRE_ARCHIVO,
                 "carpeta": ID_CARPETA_TOLEDO
-            }
+            }, timeout=20)
             
-            # Realizamos la petición al Apps Script
-            response = requests.get(URL_APPS_SCRIPT, params=params, timeout=15)
+            respuesta_servidor = res.text.strip()
             
-            st.write("---")
-            st.write("**Resultado del Servidor:**")
-            
-            if response.text.startswith("http"):
-                st.success("✅ ¡CONEXIÓN EXITOSA!")
-                st.write("El archivo fue encontrado correctamente.")
-                st.link_button("📥 Descargar Archivo", response.text.strip())
-                st.code(response.text, language="text")
+            if respuesta_servidor.startswith("http"):
+                st.success("✅ ¡ARCHIVO LOCALIZADO!")
+                st.balloons()
+                st.link_button("📥 ABRIR / DESCARGAR CERTIFICADO", respuesta_servidor)
             else:
-                st.error("❌ ARCHIVO NO ENCONTRADO")
-                st.write(f"El servidor respondió: `{response.text}`")
-                st.info("""
-                **Posibles causas del fallo:**
-                1. El archivo en Drive no se llama exactamente `Certificado.122025.pdf` (revisa mayúsculas/minúsculas).
-                2. El archivo no está dentro de la carpeta con ID `11UQVAgZhkaCjt7BUofsjPcf_HybC-Qi6`.
-                3. El Apps Script no tiene permisos para acceder a esa carpeta específica.
-                """)
+                st.error("❌ NO SE PUDO OBTENER EL ARCHIVO")
+                st.warning(f"Respuesta de Google: {respuesta_servidor}")
+                st.info("💡 RECOMENDACIÓN: Verifica que la CARPETA en Drive tenga el acceso compartido como 'Cualquier persona con el enlace puede leer'.")
                 
         except Exception as e:
-            st.error(f"💥 Error crítico de conexión: {e}")
+            st.error(f"Hubo un fallo en la conexión: {str(e)}")
 
 st.divider()
-st.caption("Herramienta de diagnóstico rápido - Control Laboral 2026")
+st.caption("Conexión segura vía C&S Asociados Ltda.")
