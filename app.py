@@ -2,8 +2,8 @@ import streamlit as st
 import requests
 
 # --- CONFIGURACIÓN ---
-# ⚠️ PEGA AQUÍ TU NUEVA URL ENTRE LAS COMILLAS
-URL_APPS_SCRIPT = "https://script.google.com/macros/library/d/1QS-c-O4GdV1OW5wuQaav4B2zfB8e0l9F5fEwaoUj8xqSkeFUyc62CrjW/1"
+# Asegúrate de que esta URL sea la de la NUEVA implementación
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFTw/exec"
 
 ID_CARPETA_TOLEDO = "11UQVAgZhkaCjt7BUofsjPcf_HybC-Qi6"
 NOMBRE_ARCHIVO = "Certificado.122025.pdf"
@@ -16,18 +16,18 @@ st.info(f"📁 Buscando: `{NOMBRE_ARCHIVO}`")
 if st.button("🚀 Consultar Documento"):
     with st.spinner("Conectando con Google Cloud..."):
         try:
-            # Enviamos la consulta
             res = requests.get(URL_APPS_SCRIPT, params={
                 "nombre": NOMBRE_ARCHIVO,
                 "carpeta": ID_CARPETA_TOLEDO
             }, timeout=20)
             
-            # Si el script devuelve el HTML de error de Google
-            if "DOCTYPE html" in res.text:
-                st.error("❌ ERROR DE PERMISOS EN GOOGLE")
-                st.warning("Debes entrar al Apps Script y en 'Gestionar implementaciones' poner 'Quién tiene acceso: Cualquier persona'.")
+            # Detectamos si Google nos está mandando a la página de login
+            if "accounts.google.com" in res.text or "signin" in res.text:
+                st.error("🔒 ERROR DE PERMISOS: Google pide iniciar sesión.")
+                st.warning("⚠️ ACCIÓN REQUERIDA: En el Apps Script, ve a 'Gestionar implementaciones' y cambia 'Quién tiene acceso' a 'Cualquier persona'. Luego guarda y vuelve a probar.")
             elif res.text.startswith("http"):
                 st.success("✅ ¡ARCHIVO LOCALIZADO!")
+                st.balloons()
                 st.link_button("📥 DESCARGAR CERTIFICADO", res.text.strip())
             else:
                 st.error(f"Respuesta del servidor: {res.text}")
@@ -36,4 +36,4 @@ if st.button("🚀 Consultar Documento"):
             st.error(f"Fallo de conexión: {str(e)}")
 
 st.divider()
-st.caption("Prueba de enlace final - Sergio 2026")
+st.caption("Validación de seguridad - Sergio 2026")
