@@ -190,4 +190,4 @@ if rol == "ADMIN":
 
 # --- PIE DE PÁGINA ---
 st.markdown("---")
-st.caption("Sistema de gestión de datos, desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
+st.caption("Sistema de gestión de datos en tiempo real, desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
