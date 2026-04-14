@@ -15,15 +15,17 @@ col_l, col_m, col_r = st.columns([2, 4, 1])
 with col_l:
     if os.path.exists("CMSG.png"):
         st.image("CMSG.png", width=250)
-    else: st.subheader("🏢 Minera San Gerónimo")
+    else:
+        st.subheader("🏢 Minera San Gerónimo")
 
 with col_r:
     if os.path.exists("cys.png"):
         st.image("cys.png", width=120)
-    else: st.write("**C&S Asociados**")
+    else:
+        st.write("**C&S Asociados**")
 
-# --- CONEXIÓN DRIVE (Tu URL de Apps Script v.6 Diagnóstico) ---
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbybjwpKu40lWbgGSAIr7lbjvvxRhAv5DMzynoRLnpVj6CrV5TvM4dQ95Kx8jDleD6qwyA/exec"
+# --- CONEXIÓN DRIVE (Tu Nueva URL Actualizada) ---
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzcTG-3lR8r8dhiBWiPi9lvfrnLXpTtbXOtp4oAbMkpPUwDgEZgWWrsNC6jePNauVUmuA/exec"
 
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
@@ -43,10 +45,10 @@ def cargar_datos(sheet_id, nombre_pestana):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
         df = pd.read_csv(url, encoding='utf-8-sig')
-        # Normalizamos nombres de columnas para evitar errores de búsqueda
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
-    except: return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 # --- 2. SISTEMA DE LOGIN ---
 if "authenticated" not in st.session_state:
@@ -70,7 +72,8 @@ if "authenticated" not in st.session_state:
                 })
                 st.session_state.update({"authenticated": True, "u_nom": u.get('NOMBRE',''), "u_rol": u.get('ROL',''), "u_emp": u.get('EMPRESA','')})
                 st.rerun()
-            else: st.error("❌ Clave no válida.")
+            else:
+                st.error("❌ Clave no válida.")
     st.stop()
 
 # --- 3. SIDEBAR (FILTROS) ---
@@ -88,7 +91,7 @@ with st.sidebar:
         del st.session_state["authenticated"]
         st.rerun()
 
-# --- 4. TABS (4 PARA ADMIN) ---
+# --- 4. TABS (4 PARA ADMIN, 2 PARA USUARIO) ---
 rol = st.session_state["u_rol"]
 if rol == "ADMIN":
     tabs = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "⚙️ Administración"])
@@ -107,7 +110,7 @@ with tabs[0]:
         periodo_txt = f"{mes_sidebar} {anio_global}" if mes_sidebar != "AÑO COMPLETO" else f"ANUAL {anio_global}"
         st.header(f"Gestión de Control Laboral CMSG - {periodo_txt}")
 
-        # --- PASARELA DE CARGA (Arreglada línea 110 y 114) ---
+        # --- PASARELA DE CARGA (Organización Automática en Drive) ---
         with st.expander("📤 PASARELA DE CARGA DE DOCUMENTOS"):
             if mes_sidebar == "AÑO COMPLETO":
                 st.warning("Seleccione un mes en el panel lateral para habilitar la carga.")
@@ -128,15 +131,13 @@ with tabs[0]:
                     arch = c_file.file_uploader(f"Subir {nombre_doc}", type=["pdf"], key=f"up_{prefijo}")
                     if c_btn.button(f"🚀 Enviar {prefijo}", key=f"btn_{prefijo}"):
                         if arch:
-                            # 1. Buscamos la fila de la empresa en la Base de IDs
                             match = df_id[df_id[col_e].str.contains(empresa_up[:10], case=False, na=False)]
                             if not match.empty:
                                 col_f = next((c for c in df_id.columns if 'ID' in c or 'CARPETA' in c), 'IDCARPETA')
                                 id_folder = str(match.iloc[0][col_f]).strip()
                                 
-                                # Seguridad: Validamos el ID antes de subir
                                 if id_folder == "nan" or id_folder == "" or len(id_folder) < 10:
-                                    st.error(f"⚠️ El ID de carpeta para '{empresa_up}' en Base IDs es incorrecto.")
+                                    st.error(f"⚠️ La empresa '{empresa_up}' no tiene un ID de carpeta válido en Base IDs.")
                                 else:
                                     nombre_f = f"{prefijo}_{mes_sidebar}_{anio_global}_{empresa_up[:10].replace(' ','_')}.pdf"
                                     b64 = base64.b64encode(arch.read()).decode('utf-8')
@@ -152,15 +153,19 @@ with tabs[0]:
                                     
                                     with st.spinner(f"Subiendo {nombre_doc}..."):
                                         try:
-                                            # Sin JSON, directo como data de formulario
+                                            # Enviamos como data de formulario para evitar errores de tamaño (413)
                                             r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
                                             if "✅" in r.text:
                                                 st.success(f"¡{nombre_doc} cargado exitosamente!")
                                                 st.balloons()
-                                            else: st.error(f"Respuesta de Google: {r.text}")
-                                        except: st.error("Fallo de conexión con Drive.")
-                            else: st.error(f"❌ La empresa '{empresa_up}' no se encuentra en la Base de IDs.")
-                        else: st.warning("Por favor, seleccione un archivo.")
+                                            else:
+                                                st.error(f"Respuesta de Google: {r.text}")
+                                        except:
+                                            st.error("Error de conexión. Verifica que el Apps Script esté bien implementado.")
+                            else:
+                                st.error(f"❌ La empresa '{empresa_up}' no se encuentra en la Base de IDs.")
+                        else:
+                            st.warning("Por favor, seleccione un archivo.")
 
         # --- KPIs Y VISUALIZACIÓN ---
         st.divider()
@@ -204,7 +209,8 @@ with tabs[idx_masa]:
             if not pf.empty:
                 st.warning(f"🚨 Se detectaron {len(pf)} contratos a Plazo Fijo.")
                 st.dataframe(pf, use_container_width=True)
-            else: st.success("✅ Todo el personal analizado tiene contrato Indefinido.")
+            else:
+                st.success("✅ Todo el personal analizado tiene contrato Indefinido.")
         
         m1, m2 = st.columns(2)
         m1.metric("Dotación Total", len(df_mf))
