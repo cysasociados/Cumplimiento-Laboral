@@ -43,6 +43,7 @@ def cargar_datos(sheet_id, nombre_pestana):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
         df = pd.read_csv(url, encoding='utf-8-sig')
+        # Normalizamos nombres de columnas para evitar errores de búsqueda
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
     except: return pd.DataFrame()
@@ -87,7 +88,7 @@ with st.sidebar:
         del st.session_state["authenticated"]
         st.rerun()
 
-# --- 4. TABS (4 PARA ADMIN, 2 PARA USUARIO) ---
+# --- 4. TABS (4 PARA ADMIN) ---
 rol = st.session_state["u_rol"]
 if rol == "ADMIN":
     tabs = st.tabs(["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "⚙️ Administración"])
@@ -106,5 +107,123 @@ with tabs[0]:
         periodo_txt = f"{mes_sidebar} {anio_global}" if mes_sidebar != "AÑO COMPLETO" else f"ANUAL {anio_global}"
         st.header(f"Gestión de Control Laboral CMSG - {periodo_txt}")
 
-        # --- PASARELA DE CARGA (Opción A) ---
-        with st.expander
+        # --- PASARELA DE CARGA (Arreglada línea 110 y 114) ---
+        with st.expander("📤 PASARELA DE CARGA DE DOCUMENTOS"):
+            if mes_sidebar == "AÑO COMPLETO":
+                st.warning("Seleccione un mes en el panel lateral para habilitar la carga.")
+            else:
+                empresa_up = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa para Carga:", sorted(df_f[col_e].unique()))
+                
+                docs_up = [
+                    ("Liquidaciones de Sueldos", "LIQ"),
+                    ("Planilla Leyes Sociales (Previred)", "PREVIRED"),
+                    ("Formulario F30 (Antecedentes)", "F30"),
+                    ("Formulario F30-1 (Cumplimiento)", "F30_1"),
+                    ("Comprobante de Pagos", "PAGOS"),
+                    ("Otros Documentos", "OTROS")
+                ]
+                
+                for nombre_doc, prefijo in docs_up:
+                    c_file, c_btn = st.columns([3, 1])
+                    arch = c_file.file_uploader(f"Subir {nombre_doc}", type=["pdf"], key=f"up_{prefijo}")
+                    if c_btn.button(f"🚀 Enviar {prefijo}", key=f"btn_{prefijo}"):
+                        if arch:
+                            # 1. Buscamos la fila de la empresa en la Base de IDs
+                            match = df_id[df_id[col_e].str.contains(empresa_up[:10], case=False, na=False)]
+                            if not match.empty:
+                                col_f = next((c for c in df_id.columns if 'ID' in c or 'CARPETA' in c), 'IDCARPETA')
+                                id_folder = str(match.iloc[0][col_f]).strip()
+                                
+                                # Seguridad: Validamos el ID antes de subir
+                                if id_folder == "nan" or id_folder == "" or len(id_folder) < 10:
+                                    st.error(f"⚠️ El ID de carpeta para '{empresa_up}' en Base IDs es incorrecto.")
+                                else:
+                                    nombre_f = f"{prefijo}_{mes_sidebar}_{anio_global}_{empresa_up[:10].replace(' ','_')}.pdf"
+                                    b64 = base64.b64encode(arch.read()).decode('utf-8')
+                                    
+                                    payload = {
+                                        "nombre_final": nombre_f,
+                                        "id_carpeta": id_folder,
+                                        "anio": anio_global,
+                                        "mes_nombre": MAPA_MESES_CARPETAS[mes_sidebar],
+                                        "mimetype": "application/pdf",
+                                        "archivo_base64": b64
+                                    }
+                                    
+                                    with st.spinner(f"Subiendo {nombre_doc}..."):
+                                        try:
+                                            # Sin JSON, directo como data de formulario
+                                            r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
+                                            if "✅" in r.text:
+                                                st.success(f"¡{nombre_doc} cargado exitosamente!")
+                                                st.balloons()
+                                            else: st.error(f"Respuesta de Google: {r.text}")
+                                        except: st.error("Fallo de conexión con Drive.")
+                            else: st.error(f"❌ La empresa '{empresa_up}' no se encuentra en la Base de IDs.")
+                        else: st.warning("Por favor, seleccione un archivo.")
+
+        # --- KPIs Y VISUALIZACIÓN ---
+        st.divider()
+        cols_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else [c for c in df_f.columns if c in MAPA_MESES_CARPETAS.keys()]
+        df_num = df_f[cols_filt].apply(pd.to_numeric, errors='coerce')
+        
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Empresas", len(df_f))
+        t_p = df_num.isin([1,2,3,4,5]).sum().sum()
+        t_5 = (df_num == 5).sum().sum()
+        k2.metric("% Cumplimiento", f"{(t_5/t_p*100 if t_p > 0 else 0):.1f}%")
+        al_dia = ((df_num == 5).all(axis=1)).sum() if not df_num.empty else 0
+        k3.metric("Empresas al Día", al_dia)
+
+        st.write("### 📊 Resumen de Estados por Periodo")
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("✅ Cumple", int((df_num == 5).sum().sum()))
+        c2.metric("🔵 En Revisión", int((df_num == 2).sum().sum()))
+        c3.metric("🟠 Carga Doc.", int((df_num == 1).sum().sum()))
+        c4.metric("🟡 Observado", int((df_num == 3).sum().sum()))
+
+# --- TAB 2: KPIs EMPRESAS ---
+if rol != "USUARIO":
+    with tabs[1]:
+        st.header("🏢 Registro de Empresas y Carpetas")
+        st.dataframe(cargar_datos(ID_EMPRESAS, "HOJA1"), use_container_width=True)
+
+# --- TAB 3: MASA COLABORADORES ---
+idx_masa = 2
+with tabs[idx_masa]:
+    st.header(f"Análisis de Dotación - {anio_global}")
+    mes_masa = st.selectbox("Mes Masa:", list(MAPA_MESES_CARPETAS.keys()), key="masa_s")
+    df_masa = cargar_datos(ID_COLABORADORES, f"{mes_masa.capitalize()}{anio_global[-2:]}")
+    if not df_masa.empty:
+        col_rs = next((c for c in df_masa.columns if 'RAZON' in c), df_masa.columns[0])
+        df_mf = df_masa[df_masa[col_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_masa
+        
+        col_con = next((c for c in df_mf.columns if 'CONTRATO' in c), None)
+        if col_con:
+            pf = df_mf[df_mf[col_con].astype(str).str.contains("PLAZO FIJO", case=False, na=False)]
+            if not pf.empty:
+                st.warning(f"🚨 Se detectaron {len(pf)} contratos a Plazo Fijo.")
+                st.dataframe(pf, use_container_width=True)
+            else: st.success("✅ Todo el personal analizado tiene contrato Indefinido.")
+        
+        m1, m2 = st.columns(2)
+        m1.metric("Dotación Total", len(df_mf))
+        if 'NACIONALIDAD' in df_mf.columns:
+            ext = len(df_mf[~df_mf['NACIONALIDAD'].str.contains('CHILE', na=False)])
+            m2.metric("Extranjeros", ext)
+        st.dataframe(df_mf, use_container_width=True)
+
+# --- TAB 4: ADMINISTRACIÓN ---
+if rol == "ADMIN":
+    with tabs[3]:
+        st.header("⚙️ Administración")
+        st.subheader("📅 Log de Accesos")
+        if st.session_state["log_accesos"]:
+            st.table(pd.DataFrame(st.session_state["log_accesos"]))
+        st.divider()
+        st.subheader("👥 Usuarios del Sistema")
+        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
+
+# --- PIE DE PÁGINA ---
+st.markdown("---")
+st.caption("Sistema de gestión de datos en tiempo real - C & S Asociados Ltda. para CMSG")
