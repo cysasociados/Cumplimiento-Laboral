@@ -189,6 +189,3 @@ with tabs[idx_masa]:
             m1, m2, m3 = st.columns(3)
             m1.
 
-# Pie de página
-st.markdown("---")
-st.caption("Sistema de gestión de datos en tiempo real, desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
