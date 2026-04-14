@@ -22,7 +22,7 @@ with col_r:
         st.image("cys.png", width=120)
     else: st.write("**C&S Asociados**")
 
-# --- CONEXIÓN DRIVE (Tu Nueva URL Actualizada) ---
+# --- CONEXIÓN DRIVE (Tu URL de Apps Script v.6 Diagnóstico) ---
 URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbybjwpKu40lWbgGSAIr7lbjvvxRhAv5DMzynoRLnpVj6CrV5TvM4dQ95Kx8jDleD6qwyA/exec"
 
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
@@ -106,9 +106,5 @@ with tabs[0]:
         periodo_txt = f"{mes_sidebar} {anio_global}" if mes_sidebar != "AÑO COMPLETO" else f"ANUAL {anio_global}"
         st.header(f"Gestión de Control Laboral CMSG - {periodo_txt}")
 
-        # --- PASARELA DE CARGA ---
-        with st.expander("📤 PASARELA DE CARGA DE DOCUMENTOS"):
-            if mes_sidebar == "AÑO COMPLETO":
-                st.warning("Seleccione un mes en el panel lateral para habilitar la carga.")
-            else:
-                empresa_up = st.session_state['u_
+        # --- PASARELA DE CARGA (Opción A) ---
+        with st.expander
