@@ -24,8 +24,8 @@ with col_r:
     else:
         st.write("**C&S Asociados**")
 
-# --- CONEXIÓN DRIVE (Tu Nueva URL Actualizada) ---
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzcTG-3lR8r8dhiBWiPi9lvfrnLXpTtbXOtp4oAbMkpPUwDgEZgWWrsNC6jePNauVUmuA/exec"
+# --- CONEXIÓN DRIVE (Tu Nueva URL con Permisos) ---
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwJF9JueAYRULjQshOxRFm9r7Mqalr15SQpW3OCU1E75F9YOB9E0wIcAMBI2t-3Uheb7A/exec"
 
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
@@ -110,7 +110,7 @@ with tabs[0]:
         periodo_txt = f"{mes_sidebar} {anio_global}" if mes_sidebar != "AÑO COMPLETO" else f"ANUAL {anio_global}"
         st.header(f"Gestión de Control Laboral CMSG - {periodo_txt}")
 
-        # --- PASARELA DE CARGA (Organización Automática en Drive) ---
+        # --- PASARELA DE CARGA ---
         with st.expander("📤 PASARELA DE CARGA DE DOCUMENTOS"):
             if mes_sidebar == "AÑO COMPLETO":
                 st.warning("Seleccione un mes en el panel lateral para habilitar la carga.")
@@ -137,7 +137,7 @@ with tabs[0]:
                                 id_folder = str(match.iloc[0][col_f]).strip()
                                 
                                 if id_folder == "nan" or id_folder == "" or len(id_folder) < 10:
-                                    st.error(f"⚠️ La empresa '{empresa_up}' no tiene un ID de carpeta válido en Base IDs.")
+                                    st.error(f"⚠️ Error en Base IDs: '{empresa_up}' no tiene un ID válido.")
                                 else:
                                     nombre_f = f"{prefijo}_{mes_sidebar}_{anio_global}_{empresa_up[:10].replace(' ','_')}.pdf"
                                     b64 = base64.b64encode(arch.read()).decode('utf-8')
@@ -153,19 +153,19 @@ with tabs[0]:
                                     
                                     with st.spinner(f"Subiendo {nombre_doc}..."):
                                         try:
-                                            # Enviamos como data de formulario para evitar errores de tamaño (413)
+                                            # Enviamos datos directamente para mayor estabilidad
                                             r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
                                             if "✅" in r.text:
-                                                st.success(f"¡{nombre_doc} cargado exitosamente!")
+                                                st.success(f"¡{nombre_doc} guardado!")
                                                 st.balloons()
                                             else:
                                                 st.error(f"Respuesta de Google: {r.text}")
                                         except:
-                                            st.error("Error de conexión. Verifica que el Apps Script esté bien implementado.")
+                                            st.error("Error de conexión con el puente de Drive.")
                             else:
-                                st.error(f"❌ La empresa '{empresa_up}' no se encuentra en la Base de IDs.")
+                                st.error(f"❌ La empresa '{empresa_up}' no está en la Base de IDs.")
                         else:
-                            st.warning("Por favor, seleccione un archivo.")
+                            st.warning("Seleccione un archivo primero.")
 
         # --- KPIs Y VISUALIZACIÓN ---
         st.divider()
