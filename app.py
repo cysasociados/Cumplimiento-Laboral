@@ -5,12 +5,11 @@ from datetime import datetime
 import requests
 import re
 
-# 1. CONFIGURACIÓN DE PANTALLA
+# 1. CONFIGURACIÓN Y CONSTANTES GLOBALES
 st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="🛡️")
 
-# --- CONFIGURACIÓN DE CONEXIÓN ---
-# Asegúrate de que esta sea tu URL de Apps Script (la que termina en /exec)
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFTw/exec"
+# --- LLAVE MAESTRA DE DRIVE ---
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec"
 
 # IDs DE GOOGLE SHEETS
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
@@ -18,7 +17,8 @@ ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo"
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
-# --- MAPA DE MESES GLOBAL (Para evitar el NameError) ---
+# --- MAPA DE MESES (Global para evitar el NameError) ---
+# Usamos mayúsculas para que coincida con el Excel estandarizado
 MAPA_MESES = {
     'ENE': '01', 'FEB': '02', 'MAR': '03', 'ABR': '04', 'MAY': '05', 'JUN': '06',
     'JUL': '07', 'AGO': '08', 'SEP': '09', 'OCT': '10', 'NOV': '11', 'DIC': '12'
@@ -32,13 +32,13 @@ def cargar_datos(sheet_id, nombre_pestana):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={nombre_pestana}"
         df = pd.read_csv(url, encoding='utf-8-sig')
-        # Limpieza de encabezados para evitar KeyErrors
+        # Limpieza ácida de encabezados: todo a MAYÚSCULAS y sin espacios
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
     except:
         return pd.DataFrame()
 
-# --- SISTEMA DE LOGIN POR ROLES ---
+# --- 2. SISTEMA DE LOGIN (DE v.4) ---
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -48,7 +48,6 @@ if "authenticated" not in st.session_state:
         if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_u.empty:
-                # Buscamos en la columna CLAVE (normalizada)
                 col_c = next((c for c in df_u.columns if 'CLAVE' in c), 'CLAVE')
                 match = df_u[df_u[col_c].astype(str).str.strip() == pwd_input]
                 if not match.empty:
@@ -68,26 +67,26 @@ if "authenticated" not in st.session_state:
                 else: st.error("❌ Clave no válida.")
     st.stop()
 
-# --- SIDEBAR ---
+# --- 3. DISEÑO INTERFAZ ---
 with st.sidebar:
     st.image("https://cysasociados.cl/wp-content/uploads/2022/05/logo-cys.png", width=150)
     st.write(f"👤 **{st.session_state['u_nom']}**")
     st.caption(f"Rol: {st.session_state['u_rol']}")
-    anio_global = st.selectbox("Año", ["2026", "2025"])
+    anio_global = st.selectbox("Año de Análisis", ["2026", "2025"])
     if st.button("Cerrar Sesión"):
         del st.session_state["authenticated"]
         st.rerun()
 
-# --- PESTAÑAS ---
+# --- PESTAÑAS SEGÚN ROL ---
 rol = st.session_state["u_rol"]
 if rol == "ADMIN":
     tabs = st.tabs(["📈 Avance", "🏢 KPIs", "👥 Masa Laboral", "⚙️ Admin"])
 elif rol == "REVISOR":
     tabs = st.tabs(["📈 Avance", "🏢 KPIs", "👥 Masa Laboral"])
-else:
+else: # USUARIO
     tabs = st.tabs(["📈 Mi Avance", "👥 Masa Laboral"])
 
-# --- TAB 1: AVANCE Y DESCARGAS ---
+# --- TAB 1: AVANCE Y DESCARGAS (LOGICA v.5) ---
 with tabs[0]:
     df_av = cargar_datos(ID_AVANCE, anio_global)
     df_id = cargar_datos(ID_EMPRESAS, "HOJA1")
@@ -95,8 +94,6 @@ with tabs[0]:
     if not df_av.empty:
         col_e = next((c for c in df_av.columns if 'EMP' in c), df_av.columns[0])
         df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
-        
-        # Columnas de meses presentes
         cols_m = [c for c in df_f.columns if c in MAPA_MESES.keys()]
 
         st.header(f"Gestión de Auditoría - {anio_global}")
@@ -123,8 +120,10 @@ with tabs[0]:
             mes_sel = st.selectbox("Mes para Certificado:", cols_m)
             
             if st.button(f"🚀 Descargar {mes_sel}"):
-                col_id_e = next((c for c in df_id.columns if 'EMP' in c), df_id.columns[0])
+                col_id_e = next((c for c in df_id.columns if 'EMP' in c), 'EMPRESA')
                 col_id_f = next((c for c in df_id.columns if 'ID' in c or 'CARPETA' in c), 'IDCARPETA')
+                
+                # Match flexible (Toledo Gianzo vs Toledo Gianzo y Cía)
                 match = df_id[df_id[col_id_e].str.contains(emp_sel[:15], case=False, na=False)]
                 
                 if not match.empty:
@@ -137,7 +136,9 @@ with tabs[0]:
                             if r.text.startswith("http"):
                                 st.success("✅ ¡Encontrado!")
                                 st.link_button("📥 Bajar Certificado", r.text.strip())
-                            else: st.error("No disponible en Drive.")
+                            else: 
+                                st.error("No disponible en Drive.")
+                                st.caption(f"Buscado como: `{nombre_archivo}`")
                         except: st.error("Error de conexión.")
                 else: st.error("Empresa no vinculada en Base IDs.")
 
@@ -148,17 +149,16 @@ with tabs[0]:
                 st.plotly_chart(px.pie(pd.DataFrame(pie_list), names='Estado', hole=.4, 
                                       color_discrete_map={"Cumple":"#00FF00","Obs":"#FFFF00","No Cumple":"#FF0000","Revisión":"#1E90FF","Carga":"#FF8C00"}), use_container_width=True)
 
-# --- TAB 3: MASA LABORAL (Corregido el NameError) ---
+# --- TAB 3: MASA LABORAL (FIX NameError) ---
 idx_masa = 1 if rol == "USUARIO" else 2
 with tabs[idx_masa]:
     st.header(f"Análisis de Dotación - {anio_global}")
-    # Ahora MAPA_MESES es global y no falla
+    # Ahora MAPA_MESES es global y el selectbox no fallará
     mes_m = st.selectbox("Mes Masa:", list(MAPA_MESES.keys()))
     
-    # Carga dinámica: Ene26, Feb26, etc.
     df_m = cargar_datos(ID_COLABORADORES, f"{mes_m.capitalize()}{anio_global[-2:]}")
     if not df_m.empty:
-        col_rs = next((c for c in df_m.columns if 'RAZONSOCIAL' in c), df_m.columns[0])
+        col_rs = next((c for c in df_m.columns if 'RAZON' in c), df_m.columns[0])
         df_m_f = df_m[df_m[col_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_m
         
         m1, m2, m3 = st.columns(3)
@@ -168,7 +168,7 @@ with tabs[idx_masa]:
             m2.metric("Extranjeros", ext)
         st.dataframe(df_m_f, use_container_width=True)
 
-# --- TAB ADMIN ---
+# --- TAB 4: ADMIN (DE v.4) ---
 if rol == "ADMIN":
     with tabs[3]:
         st.subheader("📅 Log de Accesos")
