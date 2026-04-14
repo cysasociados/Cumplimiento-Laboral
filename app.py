@@ -159,7 +159,3 @@ with tabs[0]:
 
 # --- PESTAÑAS 2, 3 y 4 SE MANTIENEN IGUAL QUE TU CÓDIGO ---
 # (Se omite repetición de Masa Laboral y Administración para brevedad, pero se mantienen en tu archivo)
-
-# Pie de página
-st.markdown("---")
-st.caption("Sistema de gestión de datos en tiempo real, desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
