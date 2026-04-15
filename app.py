@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
 import requests
 import base64
 import re
@@ -21,7 +20,7 @@ with col_r:
     if os.path.exists("cys.png"): st.image("cys.png", width=120)
     else: st.write("**C&S Asociados**")
 
-# --- CONEXIÓN DRIVE (TU NUEVA URL DE RECIÉN) ---
+# --- CONEXIÓN DRIVE (Tu URL con permisos de Email habilitados) ---
 URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbz0twB53lP3FXsKcYFeuiveudxWjHnJ8MBomDV1sGRl2SUqnPVeYay3BHKXhTg-hTe1hg/exec"
 
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
@@ -29,8 +28,8 @@ ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo"
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
+# CONFIGURACIÓN GENERAL
 MAPA_ESTADOS = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
-COLORES_ESTADOS = {"Carga Doc.":"#FF8C00", "En Revision":"#1E90FF", "Observado":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
 MAPA_MESES_CARPETAS = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','MAY':'05_MAY','JUN':'06_JUN','JUL':'07_JUL','AGO':'08_AGO','SEP':'09_SEP','OCT':'10_OCT','NOV':'11_NOV','DIC':'12_DIC'}
 
 if "log_accesos" not in st.session_state:
@@ -45,7 +44,7 @@ def cargar_datos(sheet_id, nombre_pestana):
         return df.dropna(how='all')
     except: return pd.DataFrame()
 
-# --- 2. LOGIN (CAPTURA EMAIL) ---
+# --- 2. SISTEMA DE LOGIN (CAPTURA EMAIL DEL EXCEL) ---
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -86,10 +85,10 @@ with st.sidebar:
         del st.session_state["authenticated"]
         st.rerun()
 
-# --- 4. TABS ---
+# --- 4. TABS POR ROL ---
 rol = st.session_state["u_rol"]
-if rol == "ADMIN": tab_list = ["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "📤 Carga de Documentos", "⚙️ Administración"]
-elif rol == "REVISOR": tab_list = ["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "📤 Carga de Documentos"]
+if rol == "ADMIN": tab_list = ["📈 Avance", "🏢 Empresas", "👥 Dotación", "📤 Carga", "⚙️ Admin"]
+elif rol == "REVISOR": tab_list = ["📈 Avance", "🏢 Empresas", "👥 Dotación", "📤 Carga"]
 else: tab_list = ["📈 Mi Avance", "👥 Masa Laboral", "📤 Carga de Documentos"]
 tabs = st.tabs(tab_list)
 
@@ -98,7 +97,7 @@ with tabs[0]:
     if not df_av.empty:
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
         df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
-        st.header(f"Dashboard de Control Laboral - {mes_sidebar} {anio_global}")
+        st.header(f"Dashboard - {mes_sidebar} {anio_global}")
         cols_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else [c for c in df_f.columns if c in MAPA_MESES_CARPETAS.keys()]
         df_num = df_f[cols_filt].apply(pd.to_numeric, errors='coerce')
         k1, k2, k3 = st.columns(3)
@@ -109,52 +108,61 @@ with tabs[0]:
         k3.metric("Al Día", ((df_num == 5).all(axis=1)).sum() if not df_num.empty else 0)
         st.dataframe(df_f, use_container_width=True)
 
-# --- TAB: KPIs EMPRESAS ---
-if rol != "USUARIO":
-    with tabs[1]:
-        st.header("🏢 Registro de Empresas")
-        st.dataframe(cargar_datos(ID_EMPRESAS, "HOJA1"), use_container_width=True)
-
-# --- TAB: MASA COLABORADORES ---
-idx_masa = tab_list.index("👥 Masa Colaboradores") if "👥 Masa Colaboradores" in tab_list else tab_list.index("👥 Masa Laboral")
-with tabs[idx_masa]:
-    st.header(f"Dotación - {anio_global}")
-    mes_masa = st.selectbox("Mes Masa:", list(MAPA_MESES_CARPETAS.keys()), key="masa_s")
-    df_masa = cargar_datos(ID_COLABORADORES, f"{mes_masa.capitalize()}{anio_global[-2:]}")
-    if not df_masa.empty:
-        col_rs = next((c for c in df_masa.columns if 'RAZON' in str(c).upper()), df_masa.columns[0])
-        df_mf = df_masa[df_masa[col_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_masa
-        st.dataframe(df_mf, use_container_width=True)
-
 # --- TAB: CARGA DE DOCUMENTOS ---
-with tabs[tab_list.index("📤 Carga de Documentos")]:
-    st.header("📤 Pasarela de Carga de Documentos")
-    if mes_sidebar == "AÑO COMPLETO": st.warning("⚠️ Seleccione un mes en el panel lateral.")
+idx_carga = tab_list.index("📤 Carga") if "📤 Carga" in tab_list else tab_list.index("📤 Carga de Documentos")
+with tabs[idx_carga]:
+    st.header("📤 Pasarela de Carga")
+    if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un mes en el panel lateral.")
     else:
         df_id = cargar_datos(ID_EMPRESAS, "HOJA1")
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
         empresa_up = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa:", sorted(df_av[col_e].unique()))
         
-        docs_up = [("Liquidaciones", "LIQ"), ("Previred", "PREVIRED"), ("F30", "F30"), ("F30-1", "F30_1"), ("Pagos", "PAGOS"), ("Otros", "OTROS")]
-        for nombre_doc, prefijo in docs_up:
-            c_file, c_btn = st.columns([3, 1])
-            arch = c_file.file_uploader(f"Subir {nombre_doc}", type=["pdf"], key=f"up_{prefijo}")
-            if c_btn.button(f"🚀 Cargar {prefijo}", key=f"btn_{prefijo}"):
-                if arch:
+        docs = [("Liquidaciones", "LIQ"), ("Previred", "PREVIRED"), ("F30", "F30"), ("F30-1", "F30_1"), ("Pagos", "PAGOS")]
+        for nombre, pref in docs:
+            c1, c2 = st.columns([3, 1])
+            archivo = c1.file_uploader(f"Subir {nombre}", type=["pdf"], key=f"up_{pref}")
+            if c2.button(f"🚀 Cargar {pref}", key=f"btn_{pref}"):
+                if archivo:
                     match = df_id[df_id[col_e].str.contains(empresa_up[:10], case=False, na=False)]
                     if not match.empty:
                         id_f = str(match.iloc[0][next((c for c in df_id.columns if 'ID' in str(c).upper()), 'IDCARPETA')]).strip()
                         payload = {
-                            "nombre_final": f"{prefijo}_{mes_sidebar}_{anio_global}_{empresa_up[:10].replace(' ','_')}.pdf",
+                            "nombre_final": f"{pref}_{mes_sidebar}_{anio_global}_{empresa_up[:10]}.pdf",
                             "id_carpeta": id_f, "anio": anio_global, "mes_nombre": MAPA_MESES_CARPETAS[mes_sidebar],
-                            "mimetype": "application/pdf", "archivo_base64": base64.b64encode(arch.read()).decode('utf-8')
+                            "mimetype": "application/pdf", "archivo_base64": base64.b64encode(archivo.read()).decode('utf-8')
                         }
-                        with st.spinner(f"Subiendo {prefijo}..."):
-                            r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
-                            if "✅" in r.text: st.success(f"¡{prefijo} guardado!"); st.balloons()
-                            else: st.error(r.text)
-                else: st.warning("Seleccione archivo.")
+                        with st.spinner("Subiendo..."):
+                            try:
+                                r = requests.post(URL_APPS_SCRIPT, data=payload)
+                                if "✅" in r.text: st.success(f"{pref} OK!"); st.balloons()
+                                else: st.error(r.text)
+                            except: st.error("Error de conexión.")
+                else: st.warning("Seleccione un archivo.")
 
-        # --- BOTÓN FINALIZAR (CON NUEVOS PERMISOS) ---
+        # --- BOTÓN FINALIZAR ---
         st.divider()
-        st.subheader("🏁 Finalizar y
+        st.subheader("🏁 Finalizar y Notificar")
+        if st.button("✅ Enviar Notificación de Carga Finalizada", use_container_width=True):
+            p_email = {
+                "accion": "enviar_email", "empresa": empresa_up, "usuario": st.session_state["u_nom"],
+                "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]
+            }
+            with st.spinner("Enviando aviso..."):
+                try:
+                    r = requests.post(URL_APPS_SCRIPT, data=p_email, timeout=20)
+                    if "✅" in r.text: st.success("¡Email enviado con éxito!"); st.balloons()
+                    else: st.error(f"Error de Google: {r.text}")
+                except: st.error("Fallo al enviar notificación.")
+
+# --- TAB: ADMINISTRACIÓN ---
+if rol == "ADMIN":
+    with tabs[tab_list.index("⚙️ Admin")]:
+        st.header("⚙️ Panel de Control")
+        if st.session_state["log_accesos"]: st.table(pd.DataFrame(st.session_state["log_accesos"]))
+        st.divider()
+        st.subheader("👥 Usuarios del Sistema")
+        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
+
+st.markdown("---")
+st.caption("Sistema CMSG - C&S Asociados Ltda.")
