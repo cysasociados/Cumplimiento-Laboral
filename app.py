@@ -104,11 +104,4 @@ else:
 with tabs[0]:
     df_id = cargar_datos(ID_EMPRESAS, "HOJA1")
     if not df_av.empty:
-        col_e = next((c for c in df_av.columns if 'EMP' in c), 'EMPRESA')
-        df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
-        
-        periodo_txt = f"{mes_sidebar} {anio_global}" if mes_sidebar != "AÑO COMPLETO" else f"ANUAL {anio_global}"
-        st.header(f"Gestión de Control Laboral CMSG - {periodo_txt}")
-
-        # --- PASARELA DE CARGA ---
-        with st.expander("📤 PAS
+        col_e = next((c for c in df_av.columns if 'EMP' in
