@@ -59,7 +59,7 @@ if "authenticated" not in st.session_state:
         pwd = st.text_input("Contraseña:", type="password").strip()
         if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
-            col_c = next((c for c in df_u.columns if 'CLAVE' in c), 'CLAVE')
+            col_c = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
             match = df_u[df_u[col_c].astype(str).str.strip() == pwd]
             if not match.empty:
                 u = match.iloc[0]
@@ -104,4 +104,62 @@ else:
 with tabs[0]:
     df_id = cargar_datos(ID_EMPRESAS, "HOJA1")
     if not df_av.empty:
-        col_e = next((c for c in df_av.columns if 'EMP' in
+        col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
+        df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
+        
+        periodo_txt = f"{mes_sidebar} {anio_global}" if mes_sidebar != "AÑO COMPLETO" else f"ANUAL {anio_global}"
+        st.header(f"Gestión de Control Laboral CMSG - {periodo_txt}")
+
+        # --- PASARELA DE CARGA ---
+        with st.expander("📤 PASARELA DE CARGA DE DOCUMENTOS"):
+            if mes_sidebar == "AÑO COMPLETO":
+                st.warning("Seleccione un mes en el panel lateral para habilitar la carga.")
+            else:
+                empresa_up = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa para Carga:", sorted(df_f[col_e].unique()))
+                
+                docs_up = [
+                    ("Liquidaciones de Sueldos", "LIQ"),
+                    ("Planilla Leyes Sociales (Previred)", "PREVIRED"),
+                    ("Formulario F30 (Antecedentes)", "F30"),
+                    ("Formulario F30-1 (Cumplimiento)", "F30_1"),
+                    ("Comprobante de Pagos", "PAGOS"),
+                    ("Otros Documentos", "OTROS")
+                ]
+                
+                for nombre_doc, prefijo in docs_up:
+                    c_file, c_btn = st.columns([3, 1])
+                    arch = c_file.file_uploader(f"Subir {nombre_doc}", type=["pdf"], key=f"up_{prefijo}")
+                    if c_btn.button(f"🚀 Enviar {prefijo}", key=f"btn_{prefijo}"):
+                        if arch:
+                            match = df_id[df_id[col_e].str.contains(empresa_up[:10], case=False, na=False)]
+                            if not match.empty:
+                                col_f = next((c for c in df_id.columns if 'ID' in str(c).upper() or 'CARPETA' in str(c).upper()), 'IDCARPETA')
+                                id_folder = str(match.iloc[0][col_f]).strip()
+                                
+                                if len(id_folder) < 10:
+                                    st.error("ID de carpeta no válido.")
+                                else:
+                                    nombre_f = f"{prefijo}_{mes_sidebar}_{anio_global}_{empresa_up[:10].replace(' ','_')}.pdf"
+                                    b64 = base64.b64encode(arch.read()).decode('utf-8')
+                                    
+                                    payload = {
+                                        "nombre_final": nombre_f,
+                                        "id_carpeta": id_folder,
+                                        "anio": anio_global,
+                                        "mes_nombre": MAPA_MESES_CARPETAS[mes_sidebar],
+                                        "mimetype": "application/pdf",
+                                        "archivo_base64": b64
+                                    }
+                                    
+                                    with st.spinner(f"Subiendo {nombre_doc}..."):
+                                        try:
+                                            r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
+                                            if "✅" in r.text:
+                                                st.success(f"¡{nombre_doc} cargado!")
+                                                st.balloons()
+                                            else:
+                                                st.error(f"Google: {r.text}")
+                                        except:
+                                            st.error("Error de conexión.")
+                            else:
+                                st.error
