@@ -160,9 +160,16 @@ with tabs[tab_list.index("📤 Carga de Documentos")]:
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
         empresa_up = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa para Carga:", sorted(df_av[col_e].unique()))
         
-        st.write(f"#### Enviando archivos para: **{empresa_up}** ({mes_sidebar} {anio_global})")
+        st.write(f"#### Enviando archivos para: **{empresa_up}**")
         
-        docs_up = [("Liquidaciones de Sueldos", "LIQ"), ("Previred", "PREVIRED"), ("Formulario F30", "F30"), ("Formulario F30-1", "F30_1"), ("Comprobante Pagos", "PAGOS"), ("Otros Documentos", "OTROS")]
+        docs_up = [
+            ("Liquidaciones de Sueldos", "LIQ"),
+            ("Planilla Leyes Sociales (Previred)", "PREVIRED"),
+            ("Formulario F30 (Antecedentes)", "F30"),
+            ("Formulario F30-1 (Cumplimiento)", "F30_1"),
+            ("Comprobante de Pagos", "PAGOS"),
+            ("Otros Documentos", "OTROS")
+        ]
         
         for nombre_doc, prefijo in docs_up:
             c_file, c_btn = st.columns([3, 1])
@@ -175,5 +182,33 @@ with tabs[tab_list.index("📤 Carga de Documentos")]:
                         id_folder = str(match.iloc[0][col_f]).strip()
                         nombre_final = f"{prefijo}_{mes_sidebar}_{anio_global}_{empresa_up[:10].replace(' ','_')}.pdf"
                         b64 = base64.b64encode(arch.read()).decode('utf-8')
-                        payload = {"nombre_final": nombre_final, "id_carpeta": id_folder, "anio": anio_global, "mes_nombre": MAPA_MESES_CARPETAS[mes_sidebar], "mimetype": "application/pdf", "archivo_base64": b64}
-                        with st.spinner(f
+                        payload = {
+                            "nombre_final": nombre_final,
+                            "id_carpeta": id_folder,
+                            "anio": anio_global,
+                            "mes_nombre": MAPA_MESES_CARPETAS[mes_sidebar],
+                            "mimetype": "application/pdf",
+                            "archivo_base64": b64
+                        }
+                        with st.spinner(f"Subiendo {prefijo}..."):
+                            try:
+                                r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
+                                if "✅" in r.text:
+                                    st.success(f"¡{prefijo} guardado!"); st.balloons()
+                                else: st.error(f"Respuesta Drive: {r.text}")
+                            except: st.error("Error de conexión con el servidor.")
+                else: st.warning("Por favor, seleccione un archivo primero.")
+
+# --- TAB: ADMINISTRACIÓN ---
+if rol == "ADMIN":
+    with tabs[tab_list.index("⚙️ Administración")]:
+        st.header("⚙️ Panel de Administración")
+        st.subheader("👥 Usuarios Registrados")
+        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
+        st.divider()
+        st.subheader("📅 Log de Accesos (Hora Chile 🇨🇱)")
+        if st.session_state["log_accesos"]:
+            st.table(pd.DataFrame(st.session_state["log_accesos"]))
+
+st.markdown("---")
+st.caption("Sistema de Gestión CMSG - Desarrollado por C&S Asociados Ltda.")
