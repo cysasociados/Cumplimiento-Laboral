@@ -12,7 +12,7 @@ import pytz
 st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="🛡️")
 chile_tz = pytz.timezone('America/Santiago')
 
-# --- CABECERA CON LOGOS ---
+# --- CABECERA ---
 col_l, col_m, col_r = st.columns([2, 4, 1])
 with col_l:
     if os.path.exists("CMSG.png"): st.image("CMSG.png", width=250)
@@ -21,7 +21,7 @@ with col_r:
     if os.path.exists("cys.png"): st.image("cys.png", width=120)
     else: st.write("**C&S Asociados**")
 
-# --- CONEXIÓN DRIVE (URL COMBO CARGA + EMAIL) ---
+# --- CONEXIÓN DRIVE (TU NUEVA URL DE RECIÉN) ---
 URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbz0twB53lP3FXsKcYFeuiveudxWjHnJ8MBomDV1sGRl2SUqnPVeYay3BHKXhTg-hTe1hg/exec"
 
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
@@ -29,7 +29,6 @@ ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo"
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
-# CONFIGURACIÓN GENERAL
 MAPA_ESTADOS = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
 COLORES_ESTADOS = {"Carga Doc.":"#FF8C00", "En Revision":"#1E90FF", "Observado":"#FFFF00", "No Cumple":"#FF0000", "Cumple":"#00FF00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
 MAPA_MESES_CARPETAS = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','MAY':'05_MAY','JUN':'06_JUN','JUL':'07_JUL','AGO':'08_AGO','SEP':'09_SEP','OCT':'10_OCT','NOV':'11_NOV','DIC':'12_DIC'}
@@ -46,7 +45,7 @@ def cargar_datos(sheet_id, nombre_pestana):
         return df.dropna(how='all')
     except: return pd.DataFrame()
 
-# --- 2. SISTEMA DE LOGIN MEJORADO (CAPTURA EMAIL) ---
+# --- 2. LOGIN (CAPTURA EMAIL) ---
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -60,22 +59,14 @@ if "authenticated" not in st.session_state:
             if not match.empty:
                 u = match.iloc[0]
                 ahora_chile = datetime.now(chile_tz)
-                # Capturamos el email del usuario desde el Excel
                 email_user = u.get('EMAIL', 'cumplimiento@cysasociados.cl')
-                
                 st.session_state["log_accesos"].append({
-                    "Fecha": ahora_chile.strftime("%d/%m/%Y"),
-                    "Hora": ahora_chile.strftime("%H:%M:%S"),
-                    "Usuario": u.get('NOMBRE',''),
-                    "Empresa": u.get('EMPRESA',''),
-                    "Rol": u.get('ROL','')
+                    "Fecha": ahora_chile.strftime("%d/%m/%Y"), "Hora": ahora_chile.strftime("%H:%M:%S"),
+                    "Usuario": u.get('NOMBRE',''), "Empresa": u.get('EMPRESA',''), "Rol": u.get('ROL','')
                 })
                 st.session_state.update({
-                    "authenticated": True, 
-                    "u_nom": u.get('NOMBRE',''), 
-                    "u_rol": u.get('ROL',''), 
-                    "u_emp": u.get('EMPRESA',''),
-                    "u_email": email_user
+                    "authenticated": True, "u_nom": u.get('NOMBRE',''), "u_rol": u.get('ROL',''), 
+                    "u_emp": u.get('EMPRESA',''), "u_email": email_user
                 })
                 st.rerun()
             else: st.error("❌ Clave no válida.")
@@ -83,19 +74,19 @@ if "authenticated" not in st.session_state:
 
 # --- 3. SIDEBAR ---
 with st.sidebar:
-    st.header("⚙️ Filtros")
+    st.header("⚙️ Configuración")
     anio_global = st.selectbox("Año", ["2026", "2025"])
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MAPA_MESES_CARPETAS.keys()] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Análisis", ["AÑO COMPLETO"] + cols_m)
     st.divider()
     st.write(f"👤 **{st.session_state['u_nom']}**")
-    st.caption(f"Empresa: {st.session_state['u_emp']}")
+    st.caption(f"Rol: {st.session_state['u_rol']}")
     if st.button("Cerrar Sesión"):
         del st.session_state["authenticated"]
         st.rerun()
 
-# --- 4. TABS POR ROL ---
+# --- 4. TABS ---
 rol = st.session_state["u_rol"]
 if rol == "ADMIN": tab_list = ["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "📤 Carga de Documentos", "⚙️ Administración"]
 elif rol == "REVISOR": tab_list = ["📈 Avance Laboral", "🏢 KPIs Empresas", "👥 Masa Colaboradores", "📤 Carga de Documentos"]
@@ -107,10 +98,9 @@ with tabs[0]:
     if not df_av.empty:
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
         df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
-        st.header(f"Dashboard de Cumplimiento - {mes_sidebar} {anio_global}")
+        st.header(f"Dashboard de Control Laboral - {mes_sidebar} {anio_global}")
         cols_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else [c for c in df_f.columns if c in MAPA_MESES_CARPETAS.keys()]
         df_num = df_f[cols_filt].apply(pd.to_numeric, errors='coerce')
-        
         k1, k2, k3 = st.columns(3)
         k1.metric("Empresas", len(df_f))
         t_p = df_num.isin([1,2,3,4,5]).sum().sum()
@@ -119,16 +109,16 @@ with tabs[0]:
         k3.metric("Al Día", ((df_num == 5).all(axis=1)).sum() if not df_num.empty else 0)
         st.dataframe(df_f, use_container_width=True)
 
-# --- TAB: KPIs (ADMIN/REVISOR) ---
+# --- TAB: KPIs EMPRESAS ---
 if rol != "USUARIO":
     with tabs[1]:
-        st.header("🏢 Registro de Empresas y IDs")
+        st.header("🏢 Registro de Empresas")
         st.dataframe(cargar_datos(ID_EMPRESAS, "HOJA1"), use_container_width=True)
 
 # --- TAB: MASA COLABORADORES ---
 idx_masa = tab_list.index("👥 Masa Colaboradores") if "👥 Masa Colaboradores" in tab_list else tab_list.index("👥 Masa Laboral")
 with tabs[idx_masa]:
-    st.header(f"Dotación de Personal - {anio_global}")
+    st.header(f"Dotación - {anio_global}")
     mes_masa = st.selectbox("Mes Masa:", list(MAPA_MESES_CARPETAS.keys()), key="masa_s")
     df_masa = cargar_datos(ID_COLABORADORES, f"{mes_masa.capitalize()}{anio_global[-2:]}")
     if not df_masa.empty:
@@ -136,10 +126,10 @@ with tabs[idx_masa]:
         df_mf = df_masa[df_masa[col_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_masa
         st.dataframe(df_mf, use_container_width=True)
 
-# --- TAB: CARGA DE DOCUMENTOS (CON BOTÓN EMAIL) ---
+# --- TAB: CARGA DE DOCUMENTOS ---
 with tabs[tab_list.index("📤 Carga de Documentos")]:
-    st.header("📤 Pasarela de Carga y Finalización")
-    if mes_sidebar == "AÑO COMPLETO": st.warning("⚠️ Por favor, seleccione un mes en el panel lateral.")
+    st.header("📤 Pasarela de Carga de Documentos")
+    if mes_sidebar == "AÑO COMPLETO": st.warning("⚠️ Seleccione un mes en el panel lateral.")
     else:
         df_id = cargar_datos(ID_EMPRESAS, "HOJA1")
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
@@ -162,39 +152,9 @@ with tabs[tab_list.index("📤 Carga de Documentos")]:
                         with st.spinner(f"Subiendo {prefijo}..."):
                             r = requests.post(URL_APPS_SCRIPT, data=payload, timeout=30)
                             if "✅" in r.text: st.success(f"¡{prefijo} guardado!"); st.balloons()
-                            else: st.error(f"Error: {r.text}")
-                else: st.warning("Seleccione un archivo.")
+                            else: st.error(r.text)
+                else: st.warning("Seleccione archivo.")
 
-        # --- BOTÓN DE FINALIZACIÓN POR EMAIL ---
+        # --- BOTÓN FINALIZAR (CON NUEVOS PERMISOS) ---
         st.divider()
-        st.subheader("🏁 Finalizar Proceso del Mes")
-        st.info("Presiona este botón solo cuando hayas terminado de subir todos los documentos.")
-        if st.button("✅ Finalizar y Notificar por Email", use_container_width=True):
-            payload_email = {
-                "accion": "enviar_email",
-                "empresa": empresa_up,
-                "usuario": st.session_state["u_nom"],
-                "periodo": f"{mes_sidebar} {anio_global}",
-                "email_usuario": st.session_state["u_email"]
-            }
-            with st.spinner("Enviando comprobantes..."):
-                try:
-                    r = requests.post(URL_APPS_SCRIPT, data=payload_email, timeout=20)
-                    if "✅" in r.text:
-                        st.success("¡Excelente! Correos de confirmación enviados con éxito.")
-                        st.balloons()
-                    else: st.error(f"Error al enviar email: {r.text}")
-                except: st.error("Fallo de conexión con el servicio de correo.")
-
-# --- TAB: ADMINISTRACIÓN ---
-if rol == "ADMIN":
-    with tabs[tab_list.index("⚙️ Administración")]:
-        st.header("⚙️ Panel de Control")
-        st.subheader("📅 Registro de Accesos (Chile 🇨🇱)")
-        if st.session_state["log_accesos"]: st.table(pd.DataFrame(st.session_state["log_accesos"]))
-        st.divider()
-        st.subheader("👥 Usuarios en Sistema")
-        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
-
-st.markdown("---")
-st.caption("Sistema de Control Laboral CMSG - C&S Asociados Ltda.")
+        st.subheader("🏁 Finalizar y
