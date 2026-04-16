@@ -13,7 +13,7 @@ st.set_page_config(page_title="Control Laboral CMSG", layout="wide")
 chile_tz = pytz.timezone('America/Santiago')
 
 # CONEXION
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwYZV0d5voSi0-dQNHPKXZEZSeUQRXlpE8JzdbcJkRDkm8MSHPNNXl-FoCrY4fE8tZ_/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzTZ9V3_TL35ko9Bdcd3_Wvp9hZjD7DZx31jiDi8QUqSX318Kq0Hm-tbKRVs-uCU4SPDQ/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
@@ -28,6 +28,7 @@ def cargar_datos(sheet_id, p):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={p}"
         df = pd.read_csv(url, encoding='utf-8-sig')
+        # Normalizamos nombres: ID_Carpeta -> IDCARPETA
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
     except: return pd.DataFrame()
@@ -76,7 +77,7 @@ with tabs[0]:
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
 
-        # MATEMATICA EXCLUYENDO ESTADO 9
+        # EXCLUSION ESTADO 9
         df_audit = df_num.copy()
         df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum()
@@ -149,10 +150,10 @@ with tabs[0]:
             st.subheader("Certificado")
             m_pdf_sel = st.selectbox("Mes Certificado:", cols_m, key="sel_pdf")
             if st.button("Obtener Certificado", use_container_width=True):
-                # Match flexible de empresa
+                # Usamos IDCARPETA (normalizado)
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
-                    id_folder = str(match_id.iloc[0]['ID_CARPETA']).strip()
+                    id_folder = str(match_id.iloc[0]['IDCARPETA']).strip()
                     mm = str(MESES_LISTA.index(m_pdf_sel) + 1).zfill(2)
                     nombre_f = f"Certificado.{mm}{anio_global}.pdf"
                     
@@ -167,7 +168,7 @@ with tabs[0]:
             if "link_descarga" in st.session_state:
                 st.link_button("📥 DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
 
-# OTROS TABS (DOTACION Y CARGA)
+# DOTACION
 idx_masa = tab_list.index("Dotacion")
 with tabs[idx_masa]:
     st.header(f"Dotacion - {anio_global}")
@@ -177,6 +178,7 @@ with tabs[idx_masa]:
         c_rs = next((c for c in df_m.columns if 'RAZON' in str(c).upper()), df_m.columns[0])
         st.dataframe(df_m[df_m[c_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_m, use_container_width=True)
 
+# CARGA DOC
 idx_carga = tab_list.index("Carga Doc")
 with tabs[idx_carga]:
     st.header("Carga de Documentos")
@@ -191,7 +193,7 @@ with tabs[idx_carga]:
                 if arch:
                     mt = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_u[:10], case=False, na=False)]
                     if not mt.empty:
-                        id_f_u = str(mt.iloc[0]['ID_CARPETA']).strip()
+                        id_f_u = str(mt.iloc[0]['IDCARPETA']).strip()
                         payload = {"nombre_final": f"{p}_{mes_sidebar}_{anio_global}_{emp_u[:10]}.pdf", "id_carpeta": id_f_u, "anio": anio_global, "mes_nombre": f"{(MESES_LISTA.index(mes_sidebar)+1):02d}_{mes_sidebar}", "mimetype": "application/pdf", "archivo_base64": base64.b64encode(arch.read()).decode('utf-8')}
                         r = requests.post(URL_APPS_SCRIPT, data=payload)
                         if "Exito" in r.text: st.success("Cargado")
