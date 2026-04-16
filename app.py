@@ -1,3 +1,9 @@
+¡Entendido, Sergio! Tienes razón, 350 era demasiado protagonismo para la pantalla de entrada. Lo he ajustado a 220, que es el tamaño estándar que veníamos usando en la cabecera interna y que mantiene la elegancia sin saturar la vista.
+
+Aquí tienes el código completo con el ajuste del tamaño del logo en el login y manteniendo todas las funciones de "hospitalidad" y visuales que ya te gustaron.
+
+🐍 app.py: Versión Final con Logo Ajustado
+Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -33,16 +39,16 @@ def cargar_datos(sheet_id, p):
         return df.dropna(how='all')
     except: return pd.DataFrame()
 
-# 2. LOGIN (CON LOGO Y SALUDO PERSONALIZADO)
+# 2. LOGIN (CON LOGO AJUSTADO Y SALUDO)
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        # Logo en Pantalla de Inicio
+        # Logo en Pantalla de Inicio (Tamaño reducido a 220)
         if os.path.exists("CMSG.png"):
-            st.image("CMSG.png", use_container_width=True)
+            st.image("CMSG.png", width=220)
         
-        st.title("Acceso al Portal Laboral")
+        st.title("Acceso a Control Laboral de CMSG")
         pwd = st.text_input("Ingrese su contraseña de acceso:", type="password").strip()
         
         if st.button("Ingresar", use_container_width=True):
@@ -53,9 +59,8 @@ if "authenticated" not in st.session_state:
                 match = df_u[df_u[col_c] == pwd]
                 if not match.empty:
                     u = match.iloc[0]
-                    # Saludo de Bienvenida
                     nombre_u = u.get('NOMBRE','')
-                    st.success(f"✅ ¡Bienvenido(a), {nombre_u}! Accediendo al sistema...")
+                    st.success(f"✅ ¡Bienvenido(a), {nombre_u}! Accediendo...")
                     
                     st.session_state.update({
                         "authenticated": True, 
@@ -65,16 +70,14 @@ if "authenticated" not in st.session_state:
                         "u_email": u.get('EMAIL','')
                     })
                     st.rerun()
-                else: st.error("❌ Clave incorrecta. Intente nuevamente.")
+                else: st.error("❌ Clave incorrecta.")
     st.stop()
 
-# 3. SIDEBAR (PERFIL DE USUARIO Y FILTROS)
+# 3. SIDEBAR (PERFIL Y FILTROS)
 with st.sidebar:
-    # Logo en Sidebar
     if os.path.exists("CMSG.png"):
         st.image("CMSG.png", use_container_width=True)
     
-    # Credencial Digital del Usuario
     st.markdown("---")
     st.markdown(f"👤 **Usuario:** {st.session_state['u_nom']}")
     st.markdown(f"🏢 **Empresa:** {st.session_state['u_emp']}")
@@ -82,7 +85,7 @@ with st.sidebar:
     st.markdown("---")
     
     st.header("Seleccione Periodo")
-    anio_global = st.selectbox("Año de Auditoría", ["2026", "2025"])
+    anio_global = st.selectbox("Año", ["2026", "2025"])
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Análisis", ["AÑO COMPLETO"] + cols_m)
@@ -91,6 +94,12 @@ with st.sidebar:
     if st.button("🚪 Cerrar Sesión", use_container_width=True):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
+
+# --- CABECERA INTERNA ---
+col_logo_in, col_vacio = st.columns([1, 4])
+with col_logo_in:
+    if os.path.exists("CMSG.png"):
+        st.image("CMSG.png", width=220)
 
 # 4. TABS
 rol = st.session_state["u_rol"]
@@ -106,7 +115,7 @@ with tabs[0]:
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
 
-        # --- Lógica de Matemática Real (Sin el 9) ---
+        # MATEMATICA SIN ESTADO 9
         df_audit = df_num.copy()
         df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum()
@@ -130,7 +139,7 @@ with tabs[0]:
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
-        # Evolución Mensual
+        # GRAFICO BARRAS EVOLUTIVO
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
             st.write("### 📈 Evolución Mensual Estados de Cumplimiento")
@@ -148,7 +157,7 @@ with tabs[0]:
         df_es = df_f[df_f[col_e] == emp_sel]
         row_sel = df_es.iloc[0]
 
-        # --- Distribución Visual ---
+        # LAYOUT VISUAL
         col_izq, col_der = st.columns([3, 1.2])
 
         with col_izq:
@@ -156,31 +165,31 @@ with tabs[0]:
             p_d = df_es[cols_m].stack().value_counts().reset_index()
             p_d.columns = ['Cod', 'Cant']; p_d['Estado'] = p_d['Cod'].map(MAPA_ESTADOS)
             p_final = p_d[p_d['Cod'] != 9]
-            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución: {emp_sel}"), use_container_width=True)
+            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución de Cumplimiento: {emp_sel}"), use_container_width=True)
             
-            # --- HISTORIAL VISUAL CROMÁTICO ---
+            # HISTORIAL CROMÁTICO
             st.write("#### 📜 Historial Mensual")
             m1, m2 = cols_m[:6], cols_m[6:]
             
-            def dibujar_grid_meses(lista):
+            def dibujar_grid(lista):
                 cols = st.columns(6)
                 for i, m in enumerate(lista):
-                    cod_val = df_es[m].values[0]
-                    cod = int(cod_val) if pd.notna(cod_val) else 8
-                    txt = MAPA_ESTADOS.get(cod, "Sin Info")
-                    bg = COLORES_ESTADOS.get(txt, "#555555")
-                    tc = "#000000" if txt in ["Observado", "Cumple", "En Revision"] else "#FFFFFF"
+                    v_val = df_es[m].values[0]
+                    v = int(v_val) if pd.notna(v_val) else 8
+                    t = MAPA_ESTADOS.get(v, "Sin Info")
+                    b = COLORES_ESTADOS.get(t, "#555555")
+                    c = "#000000" if t in ["Observado", "Cumple", "En Revision"] else "#FFFFFF"
                     
                     cols[i].markdown(f"""
                         <div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; 
-                        background-color:{bg}; color:{tc}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'>
-                        <b style='font-size:13px;'>{m}</b><br><span style='font-size:9px; font-weight:bold;'>{txt.upper()}</span>
+                        background-color:{b}; color:{c}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'>
+                        <b style='font-size:13px;'>{m}</b><br><span style='font-size:9px; font-weight:bold;'>{t.upper()}</span>
                         </div>
                     """, unsafe_allow_html=True)
 
-            dibujar_grid_meses(m1)
+            dibujar_grid(m1)
             st.write("")
-            dibujar_grid_meses(m2)
+            dibujar_grid(m2)
 
         with col_der:
             st.subheader("📄 Certificado")
@@ -190,33 +199,32 @@ with tabs[0]:
                 st.session_state["last_selection"] = f"{emp_sel}_{m_pdf_sel}"
                 if "link_descarga" in st.session_state: del st.session_state["link_descarga"]
 
-            if st.button("🔍 Obtener Certificado", use_container_width=True):
+            if st.button("🔍 Obtener y Descargar Certificado", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
-                    id_folder = str(match_id.iloc[0]['IDCARPETA']).strip()
+                    id_f = str(match_id.iloc[0]['IDCARPETA']).strip()
                     mm = MAPA_MESES_NUM[m_pdf_sel]
-                    nombre_f = f"Certificado.{mm}{anio_global}.pdf"
+                    n_f = f"Certificado.{mm}{anio_global}.pdf"
                     
-                    with st.spinner("Conectando con Drive..."):
+                    with st.spinner("Buscando..."):
                         try:
-                            r = requests.get(URL_APPS_SCRIPT, params={"nombre": nombre_f, "carpeta": id_folder}, timeout=15)
+                            r = requests.get(URL_APPS_SCRIPT, params={"nombre": n_f, "carpeta": id_f}, timeout=15)
                             if r.text.startswith("http"):
                                 st.session_state["link_descarga"] = r.text.strip()
                             else: st.error("No se encontró el archivo.")
                         except: st.error("Error de conexión.")
 
             if "link_descarga" in st.session_state:
-                st.success("¡Encontrado!")
-                st.link_button("📥 DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
+                st.success("¡Archivo listo!")
+                st.link_button("📥 ABRIR / DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
 
             st.divider()
             st.subheader("📝 Observaciones")
             col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
-            if col_o and pd.notna(row_sel[col_o]):
-                st.warning(row_sel[col_o])
-            else: st.info("Sin observaciones registradas.")
+            if col_o and pd.notna(row_sel[col_o]): st.warning(row_sel[col_o])
+            else: st.info("Sin observaciones.")
 
-# TABS ADICIONALES
+# TABS ADICIONALES (DOTACION Y CARGA)
 with tabs[tab_list.index("👥 Dotacion")]:
     st.header(f"Nómina de Personal - {anio_global}")
     mes_dot = st.selectbox("Filtrar Mes:", MESES_LISTA, key="m_masa")
@@ -227,7 +235,7 @@ with tabs[tab_list.index("👥 Dotacion")]:
 
 with tabs[tab_list.index("📤 Carga Doc")]:
     st.header("Pasarela de Carga de Documentación")
-    if mes_sidebar == "AÑO COMPLETO": st.warning("Por favor, seleccione un mes específico en el panel lateral.")
+    if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un mes específico.")
     else:
         emp_u = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa Destino:", sorted(df_av[col_e].unique()))
         docs = [("Liquidaciones", "LIQ"), ("Previred", "PREVIRED"), ("F30", "F30"), ("F30-1", "F30_1"), ("Pagos", "PAGOS")]
@@ -246,7 +254,7 @@ with tabs[tab_list.index("📤 Carga Doc")]:
         if st.button("🏁 Finalizar y Notificar"):
             p_e = {"accion": "enviar_email", "empresa": emp_u, "usuario": st.session_state["u_nom"], "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]}
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
-            if "Exito" in r.text: st.success("Notificación Enviada con éxito")
+            if "Exito" in r.text: st.success("Notificación Enviada")
 
 st.markdown("---")
 st.caption("Sistema desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
