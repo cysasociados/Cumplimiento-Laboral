@@ -8,8 +8,8 @@ import os
 from datetime import datetime
 import pytz
 
-# CONFIGURACION
-st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="🛡️")
+# CONFIGURACION INICIAL
+st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="S")
 chile_tz = pytz.timezone('America/Santiago')
 
 # CABECERA
@@ -22,7 +22,7 @@ with col_r:
     else: st.write("C&S Asociados")
 
 # CONEXION
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxC_66WvdfJ3lp-oxPaJGYITkJyRQCksgJ8xb_8ch0emQy7Y8PSDkKqPiHO3MFC2Qg2wg/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxuGe9TQYwyKDHPaKJKiR8XqD14Uk7s8vk9BksMCGNBJb-0BZFj8ztWek9pJ3nDkXIBtQ/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
@@ -48,11 +48,11 @@ if "authenticated" not in st.session_state:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.title("Acceso CMSG")
-        pwd = st.text_input("Contraseña:", type="password").strip()
+        pwd = st.text_input("Contrasena:", type="password").strip()
         if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
             col_c = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
-            match = df_u[df_u[col_c].astype(str).str.strip() == pwd]
+            match = df_u[df_u[col_c].astype(str).strip() == pwd]
             if not match.empty:
                 u = match.iloc[0]
                 em_v = u.get('EMAIL')
@@ -89,32 +89,32 @@ with tabs[0]:
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
 
-        # EXCLUSION ESTADO 9 - MATEMATICA REAL
+        # MATEMATICA REAL (ESTADO 9 FUERA)
         df_audit = df_num.copy()
         df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum()
         t_5 = (df_audit == 5).sum().sum()
         perc = (t_5 / t_p * 100) if t_p > 0 else 0
 
-        # KPI AL DIA (100%)
+        # KPI AL DIA
         if mes_sidebar == "AÑO COMPLETO":
             al_dia = df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum()
         else: al_dia = (df_audit == 5).sum().sum()
 
-        st.header(f"Gestión Laboral - {mes_sidebar} {anio_global}")
+        st.header(f"Gestion Laboral - {mes_sidebar} {anio_global}")
         k1, k2, k3 = st.columns(3)
         k1.metric("Empresas", len(df_f))
         k2.metric("% Cumplimiento Real", f"{perc:.1f}%")
-        k3.metric("Empresas 100% Al Día", int(al_dia))
+        k3.metric("Empresas 100% Al Dia", int(al_dia))
 
-        # CANTIDAD POR ESTADOS
+        # CANTIDAD POR ESTADOS (RECUPERADO)
         st.write("### Periodos por Estado")
         st_c = df_num.stack().value_counts()
         m_cols_res = st.columns(len(MAPA_ESTADOS))
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
-        # GRAFICO EVOLUTIVO
+        # GRAFICO BARRAS (RECUPERADO)
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
             res_evo = []
@@ -131,46 +131,54 @@ with tabs[0]:
         df_es = df_f[df_f[col_e] == emp_sel]
         row_sel = df_es.iloc[0]
         
-        c_pie, c_desc = st.columns([3, 1])
+        c_pie, c_hist = st.columns([1, 2])
         with c_pie:
             p_d = df_es[cols_m].stack().value_counts().reset_index()
             p_d.columns = ['Cod', 'Cant']; p_d['Estado'] = p_d['Cod'].map(MAPA_ESTADOS)
             p_final = p_d[p_d['Cod'] != 9]
-            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Estatus: {emp_sel}"), use_container_width=True)
+            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS), use_container_width=True)
             
-            # HISTORIAL EN 2 LINEAS
+        with c_hist:
             st.write("#### Historial Mensual")
             m1, m2 = cols_m[:6], cols_m[6:]
             r1 = st.columns(6)
             for i, m in enumerate(m1):
                 val = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                r1[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
+                r1[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
             st.write("")
             r2 = st.columns(6)
             for i, m in enumerate(m2):
                 val = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                r2[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
+                r2[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
 
-        with c_desc:
-            st.write("#### Certificados")
-            mes_sel_pdf = st.selectbox("Mes:", cols_m, key="sel_pdf")
-            if st.button("Buscar Certificado"):
+        # SECCION OBSERVACIONES Y DESCARGA (CORREGIDA)
+        st.divider()
+        c_obs, c_btn = st.columns([2, 1])
+        with c_obs:
+            st.subheader("Observaciones")
+            col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
+            st.warning(row_sel[col_o] if col_o and pd.notna(row_sel[col_o]) else "Sin observaciones.")
+                
+        with c_btn:
+            st.subheader("Certificado")
+            m_sel_pdf = st.selectbox("Mes Certificado:", cols_m, key="sel_pdf")
+            if st.button("Buscar en Drive", use_container_width=True):
                 match_id = df_id_f[df_id_f.iloc[:,1].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
                     id_folder = str(match_id.iloc[0][0]).strip()
-                    mm = str(MESES_STD.index(mes_sel_pdf) + 1).zfill(2)
-                    nombre_f = f"Certificado.{mm}{anio_global}.pdf"
+                    mm = str(MESES_STD.index(m_sel_pdf) + 1).zfill(2)
+                    n_f = f"Certificado.{mm}{anio_global}.pdf"
                     with st.spinner("Buscando..."):
                         try:
-                            r = requests.get(URL_APPS_SCRIPT, params={"nombre": nombre_f, "carpeta": id_folder}, timeout=15)
+                            r = requests.get(URL_APPS_SCRIPT, params={"nombre": n_f, "carpeta": id_folder}, timeout=15)
                             if r.text.startswith("http"):
-                                st.session_state["link_pdf"] = r.text.strip()
-                                st.success("Encontrado!")
-                            else: st.error("No disponible")
-                        except: st.error("Error conexion")
+                                st.session_state["link_final"] = r.text.strip()
+                            else: st.error("Archivo no encontrado.")
+                        except: st.error("Error de conexion.")
             
-            if "link_pdf" in st.session_state:
-                st.link_button("Descargar PDF", st.session_state["link_pdf"], use_container_width=True)
+            if "link_final" in st.session_state:
+                st.success("Encontrado")
+                st.link_button("Descargar Certificado", st.session_state["link_final"], use_container_width=True)
 
 # DOTACION
 with tabs[2]:
