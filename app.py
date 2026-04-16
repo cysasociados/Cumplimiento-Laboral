@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 import pytz
 
-# 1. SELECCIONE PERIODO
+# 1. CONFIGURACION
 st.set_page_config(page_title="Control de Cumplimiento Laboral CMSG", layout="wide")
 chile_tz = pytz.timezone('America/Santiago')
 
@@ -37,7 +37,7 @@ def cargar_datos(sheet_id, p):
 if "authenticated" not in st.session_state:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.title("Acceso  a Control de Cumplimiento Laboral CMSG")
+        st.title("Acceso a Control Laboral de CMSG")
         pwd = st.text_input("Contraseña:", type="password").strip()
         if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
@@ -54,7 +54,7 @@ if "authenticated" not in st.session_state:
 
 # 3. SIDEBAR
 with st.sidebar:
-    st.header("Configuracion")
+    st.header("Seleccione Periodo")
     anio_global = st.selectbox("Año", ["2026", "2025"])
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
@@ -96,7 +96,7 @@ with tabs[0]:
         k3.metric("Empresas 100% Al Dia", int(al_dia))
 
         # PERIODOS POR ESTADO
-        st.write("### Periodos por Estado")
+        st.write("###")
         st_c = df_num.stack().value_counts()
         m_cols_res = st.columns(len(MAPA_ESTADOS))
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
