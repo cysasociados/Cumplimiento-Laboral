@@ -13,7 +13,7 @@ st.set_page_config(page_title="Control Laboral CMSG", layout="wide")
 chile_tz = pytz.timezone('America/Santiago')
 
 # CONEXION
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbzTZ9V3_TL35ko9Bdcd3_Wvp9hZjD7DZx31jiDi8QUqSX318Kq0Hm-tbKRVs-uCU4SPDQ/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxuGe9TQYwyKDHPaKJKiR8XqD14Uk7s8vk9BksMCGNBJb-0BZFj8ztWek9pJ3nDkXIBtQ/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
@@ -28,7 +28,6 @@ def cargar_datos(sheet_id, p):
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={p}"
         df = pd.read_csv(url, encoding='utf-8-sig')
-        # Normalizamos nombres: ID_Carpeta -> IDCARPETA
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
     except: return pd.DataFrame()
@@ -77,7 +76,7 @@ with tabs[0]:
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
 
-        # EXCLUSION ESTADO 9
+        # MATEMATICA EXCLUYENDO ESTADO 9
         df_audit = df_num.copy()
         df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum()
@@ -102,32 +101,23 @@ with tabs[0]:
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
-        # GRAFICO BARRAS
-        if mes_sidebar == "AÑO COMPLETO":
-            st.divider()
-            res_evo = []
-            for m in cols_m:
-                counts_m = df_f[m].value_counts()
-                for cod, cant in counts_m.items():
-                    if pd.notna(cod):
-                        res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
-            if res_evo:
-                st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
-
         st.divider()
-        emp_sel = st.selectbox("Seleccione Empresa:", sorted(df_f[col_e].unique()))
+        emp_sel = st.selectbox("Seleccione Empresa para Detalle:", sorted(df_f[col_e].unique()))
         df_es = df_f[df_f[col_e] == emp_sel]
         row_sel = df_es.iloc[0]
-        
-        c_pie, c_hist = st.columns([1, 2])
-        with c_pie:
+
+        # --- NUEVO LAYOUT VISUAL ---
+        col_izq, col_der = st.columns([3, 1.2])
+
+        with col_izq:
+            # 1. GRAFICO CIRCULAR
             p_d = df_es[cols_m].stack().value_counts().reset_index()
             p_d.columns = ['Cod', 'Cant']; p_d['Estado'] = p_d['Cod'].map(MAPA_ESTADOS)
             p_final = p_d[p_d['Cod'] != 9]
-            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS), use_container_width=True)
+            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribucion de Estados: {emp_sel}"), use_container_width=True)
             
-        with c_hist:
-            st.write("#### Historial Mensual")
+            # 2. HISTORIAL MENSUAL (DEBAJO DEL GRAFICO)
+            st.write("#### 📜 Historial Mensual")
             m1, m2 = cols_m[:6], cols_m[6:]
             r1 = st.columns(6)
             for i, m in enumerate(m1):
@@ -139,18 +129,11 @@ with tabs[0]:
                 v = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
                 r2[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(v)}</small></div>", unsafe_allow_html=True)
 
-        # DESCARGA
-        st.divider()
-        c_obs, c_btn = st.columns([2, 1])
-        with c_obs:
-            st.subheader("Observaciones")
-            col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
-            st.warning(row_sel[col_o] if col_o and pd.notna(row_sel[col_o]) else "Sin observaciones.")
-        with c_btn:
-            st.subheader("Certificado")
-            m_pdf_sel = st.selectbox("Mes Certificado:", cols_m, key="sel_pdf")
-            if st.button("Obtener Certificado", use_container_width=True):
-                # Usamos IDCARPETA (normalizado)
+        with col_der:
+            # 1. SECCION DE DESCARGA (A LA DERECHA DEL GRAFICO)
+            st.subheader("📄 Certificado")
+            m_pdf_sel = st.selectbox("Seleccione Mes para Descarga:", cols_m, key="sel_pdf")
+            if st.button("🚀 Obtener Certificado", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
                     id_folder = str(match_id.iloc[0]['IDCARPETA']).strip()
@@ -162,13 +145,39 @@ with tabs[0]:
                             r = requests.get(URL_APPS_SCRIPT, params={"nombre": nombre_f, "carpeta": id_folder}, timeout=15)
                             if r.text.startswith("http"):
                                 st.session_state["link_descarga"] = r.text.strip()
-                            else: st.error("No se encontro el archivo en Drive.")
+                            else: st.error("Archivo no encontrado en Drive.")
                         except: st.error("Error de conexion.")
             
             if "link_descarga" in st.session_state:
+                st.success("¡Encontrado!")
                 st.link_button("📥 DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
+                if st.button("Nueva Busqueda"):
+                    del st.session_state["link_descarga"]
+                    st.rerun()
 
-# DOTACION
+            st.divider()
+            # 2. OBSERVACIONES (DEBAJO DEL BOTON DE DESCARGA)
+            st.subheader("📝 Observaciones")
+            col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
+            if col_o and pd.notna(row_sel[col_o]):
+                st.warning(row_sel[col_o])
+            else:
+                st.info("Sin observaciones registradas.")
+
+        # GRAFICO BARRAS EVOLUTIVO (AL FINAL)
+        if mes_sidebar == "AÑO COMPLETO":
+            st.divider()
+            st.write("### 📈 Evolución Mensual de Estados")
+            res_evo = []
+            for m in cols_m:
+                counts_m = df_f[m].value_counts()
+                for cod, cant in counts_m.items():
+                    if pd.notna(cod):
+                        res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
+            if res_evo:
+                st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
+
+# TAB DOTACION
 idx_masa = tab_list.index("Dotacion")
 with tabs[idx_masa]:
     st.header(f"Dotacion - {anio_global}")
@@ -198,7 +207,7 @@ with tabs[idx_carga]:
                         r = requests.post(URL_APPS_SCRIPT, data=payload)
                         if "Exito" in r.text: st.success("Cargado")
         st.divider()
-        if st.button("Finalizar Proceso"):
+        if st.button("Finalizar y Notificar"):
             p_e = {"accion": "enviar_email", "empresa": emp_u, "usuario": st.session_state["u_nom"], "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]}
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
             if "Exito" in r.text: st.success("Notificado")
