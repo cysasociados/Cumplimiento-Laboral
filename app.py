@@ -8,21 +8,12 @@ import os
 from datetime import datetime
 import pytz
 
-# CONFIGURACION INICIAL
+# CONFIGURACION
 st.set_page_config(page_title="Control Laboral CMSG", layout="wide", page_icon="S")
 chile_tz = pytz.timezone('America/Santiago')
 
-# CABECERA
-col_l, col_m, col_r = st.columns([2, 4, 1])
-with col_l:
-    if os.path.exists("CMSG.png"): st.image("CMSG.png", width=250)
-    else: st.subheader("Minera San Geronimo")
-with col_r:
-    if os.path.exists("cys.png"): st.image("cys.png", width=120)
-    else: st.write("C&S Asociados")
-
 # CONEXION
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxuGe9TQYwyKDHPaKJKiR8XqD14Uk7s8vk9BksMCGNBJb-0BZFj8ztWek9pJ3nDkXIBtQ/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbyGR-F2MFsHHjxs7fdcjYLrvZ3LIi87CivQ-J4yqVgr6-rMx7fA7NLn3-sWVyG_4kWZUQ/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
@@ -31,8 +22,7 @@ ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 # MAPEOS
 MAPA_ESTADOS = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
 COLORES_ESTADOS = {"Cumple":"#00FF00", "No Cumple":"#FF0000", "Observado":"#FFFF00", "En Revision":"#1E90FF", "Carga Doc.":"#FF8C00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
-MESES_STD = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
-MAPA_MESES_CARP = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','MAY':'05_MAY','JUN':'06_JUN','JUL':'07_JUL','AGO':'08_AGO','SEP':'09_SEP','OCT':'10_OCT','NOV':'11_NOV','DIC':'12_DIC'}
+MESES_LISTA = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 
 @st.cache_data(ttl=15)
 def cargar_datos(sheet_id, p):
@@ -51,15 +41,16 @@ if "authenticated" not in st.session_state:
         pwd = st.text_input("Contrasena:", type="password").strip()
         if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
-            col_c = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
-            match = df_u[df_u[col_c].astype(str).strip() == pwd]
-            if not match.empty:
-                u = match.iloc[0]
-                em_v = u.get('EMAIL')
-                email_u = str(em_v).strip() if pd.notna(em_v) else 'cumplimiento@cysasociados.cl'
-                st.session_state.update({"authenticated": True, "u_nom": u.get('NOMBRE',''), "u_rol": u.get('ROL',''), "u_emp": u.get('EMPRESA',''), "u_email": email_u})
-                st.rerun()
-            else: st.error("Clave invalida")
+            if not df_u.empty:
+                col_c = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
+                match = df_u[df_u[col_c].astype(str).str.strip() == pwd]
+                if not match.empty:
+                    u = match.iloc[0]
+                    email_v = u.get('EMAIL')
+                    email_u = str(email_v).strip() if pd.notna(email_v) else 'cumplimiento@cysasociados.cl'
+                    st.session_state.update({"authenticated": True, "u_nom": u.get('NOMBRE',''), "u_rol": u.get('ROL',''), "u_emp": u.get('EMPRESA',''), "u_email": email_u})
+                    st.rerun()
+                else: st.error("Clave incorrecta")
     st.stop()
 
 # SIDEBAR
@@ -67,9 +58,8 @@ with st.sidebar:
     st.header("Configuracion")
     anio_global = st.selectbox("Anio", ["2026", "2025"])
     df_av = cargar_datos(ID_AVANCE, anio_global)
-    cols_m = [c for c in df_av.columns if c in MESES_STD] if not df_av.empty else []
+    cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Analisis", ["AÑO COMPLETO"] + cols_m)
-    st.write(f"Usuario: {st.session_state['u_nom']}")
     if st.button("Cerrar Sesion"):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
@@ -107,20 +97,20 @@ with tabs[0]:
         k2.metric("% Cumplimiento Real", f"{perc:.1f}%")
         k3.metric("Empresas 100% Al Dia", int(al_dia))
 
-        # CANTIDAD POR ESTADOS (RECUPERADO)
+        # PERIODOS POR ESTADO
         st.write("### Periodos por Estado")
         st_c = df_num.stack().value_counts()
         m_cols_res = st.columns(len(MAPA_ESTADOS))
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
-        # GRAFICO BARRAS (RECUPERADO)
+        # GRAFICO BARRAS
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
             res_evo = []
             for m in cols_m:
-                c_m = df_f[m].value_counts()
-                for cod, cant in c_m.items():
+                counts_m = df_f[m].value_counts()
+                for cod, cant in counts_m.items():
                     if pd.notna(cod):
                         res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
             if res_evo:
@@ -144,14 +134,14 @@ with tabs[0]:
             r1 = st.columns(6)
             for i, m in enumerate(m1):
                 val = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                r1[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
+                r1[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
             st.write("")
             r2 = st.columns(6)
             for i, m in enumerate(m2):
                 val = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                r2[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
+                r2[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(val)}</small></div>", unsafe_allow_html=True)
 
-        # SECCION OBSERVACIONES Y DESCARGA (CORREGIDA)
+        # OBSERVACIONES Y DESCARGA
         st.divider()
         c_obs, c_btn = st.columns([2, 1])
         with c_obs:
@@ -161,29 +151,29 @@ with tabs[0]:
                 
         with c_btn:
             st.subheader("Certificado")
-            m_sel_pdf = st.selectbox("Mes Certificado:", cols_m, key="sel_pdf")
+            m_pdf_sel = st.selectbox("Mes Certificado:", cols_m, key="sel_pdf")
             if st.button("Buscar en Drive", use_container_width=True):
                 match_id = df_id_f[df_id_f.iloc[:,1].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
                     id_folder = str(match_id.iloc[0][0]).strip()
-                    mm = str(MESES_STD.index(m_sel_pdf) + 1).zfill(2)
+                    mm = str(MESES_LISTA.index(m_pdf_sel) + 1).zfill(2)
                     n_f = f"Certificado.{mm}{anio_global}.pdf"
                     with st.spinner("Buscando..."):
                         try:
                             r = requests.get(URL_APPS_SCRIPT, params={"nombre": n_f, "carpeta": id_folder}, timeout=15)
                             if r.text.startswith("http"):
-                                st.session_state["link_final"] = r.text.strip()
+                                st.session_state["link_pdf"] = r.text.strip()
                             else: st.error("Archivo no encontrado.")
                         except: st.error("Error de conexion.")
             
-            if "link_final" in st.session_state:
+            if "link_pdf" in st.session_state:
                 st.success("Encontrado")
-                st.link_button("Descargar Certificado", st.session_state["link_final"], use_container_width=True)
+                st.link_button("Descargar Certificado", st.session_state["link_pdf"], use_container_width=True)
 
 # DOTACION
 with tabs[2]:
     st.header(f"Dotacion - {anio_global}")
-    mes_masa = st.selectbox("Mes Masa:", MESES_STD, key="m_masa")
+    mes_masa = st.selectbox("Mes Masa:", MESES_LISTA, key="m_masa")
     df_m = cargar_datos(ID_COLABORADORES, f"{mes_masa.capitalize()}{anio_global[-2:]}")
     if not df_m.empty:
         c_rs = next((c for c in df_m.columns if 'RAZON' in str(c).upper()), df_m.columns[0])
@@ -192,11 +182,12 @@ with tabs[2]:
 
 # CARGA
 with tabs[3]:
-    st.header("Pasarela de Carga")
+    st.header("Carga de Documentos")
     if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione mes")
     else:
         emp_u = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa:", sorted(df_av[col_e].unique()))
-        for n, p in [("Liquidaciones", "LIQ"), ("Previred", "PREVIRED"), ("F30", "F30"), ("F30-1", "F30_1"), ("Pagos", "PAGOS")]:
+        docs = [("Liquidaciones", "LIQ"), ("Previred", "PREVIRED"), ("F30", "F30"), ("F30-1", "F30_1"), ("Pagos", "PAGOS")]
+        for n, p in docs:
             c1, c2 = st.columns([3, 1])
             arch = c1.file_uploader(f"Subir {n}", type=["pdf"], key=f"u_{p}")
             if c2.button(f"Cargar {p}", key=f"b_{p}"):
@@ -205,13 +196,13 @@ with tabs[3]:
                     mt = m_u[m_u.iloc[:,1].str.contains(emp_u[:10], case=False, na=False)]
                     if not mt.empty:
                         id_f_u = str(mt.iloc[0][0]).strip()
-                        payload = {"nombre_final": f"{p}_{mes_sidebar}_{anio_global}_{emp_u[:10]}.pdf", "id_carpeta": id_f_u, "anio": anio_global, "mes_nombre": MAPA_MESES_CARP[mes_sidebar], "mimetype": "application/pdf", "archivo_base64": base64.b64encode(arch.read()).decode('utf-8')}
+                        payload = {"nombre_final": f"{p}_{mes_sidebar}_{anio_global}_{emp_u[:10]}.pdf", "id_carpeta": id_f_u, "anio": anio_global, "mes_nombre": f"{(MESES_LISTA.index(mes_sidebar)+1):02d}_{mes_sidebar}", "mimetype": "application/pdf", "archivo_base64": base64.b64encode(arch.read()).decode('utf-8')}
                         r = requests.post(URL_APPS_SCRIPT, data=payload)
-                        if "Exito" in r.text or "✅" in r.text: st.success("Cargado"); st.balloons()
+                        if "Exito" in r.text: st.success("Cargado"); st.balloons()
         st.divider()
         if st.button("Finalizar Proceso", use_container_width=True):
             p_e = {"accion": "enviar_email", "empresa": emp_u, "usuario": st.session_state["u_nom"], "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]}
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
-            if "Exito" in r.text or "✅" in r.text: st.success("Notificado")
+            if "Exito" in r.text: st.success("Notificado")
 
 st.caption("CMSG | C&S Asociados Ltda.")
