@@ -1,9 +1,3 @@
-¡Entendido, Sergio! Tienes razón, 350 era demasiado protagonismo para la pantalla de entrada. Lo he ajustado a 220, que es el tamaño estándar que veníamos usando en la cabecera interna y que mantiene la elegancia sin saturar la vista.
-
-Aquí tienes el código completo con el ajuste del tamaño del logo en el login y manteniendo todas las funciones de "hospitalidad" y visuales que ya te gustaron.
-
-🐍 app.py: Versión Final con Logo Ajustado
-Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
