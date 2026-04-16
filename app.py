@@ -9,7 +9,7 @@ from datetime import datetime
 import pytz
 
 # 1. CONFIGURACION
-st.set_page_config(page_title="Control Laboral CMSG", layout="wide")
+st.set_page_config(page_title="Control de Cumplimiento Laboral CMSG", layout="wide")
 chile_tz = pytz.timezone('America/Santiago')
 
 # CONEXION
@@ -37,8 +37,8 @@ def cargar_datos(sheet_id, p):
 if "authenticated" not in st.session_state:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
-        st.title("Acceso CMSG")
-        pwd = st.text_input("Contrasena:", type="password").strip()
+        st.title("Acceso  a Control de Cumplimiento Laboral CMSG")
+        pwd = st.text_input("Contraseña:", type="password").strip()
         if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_u.empty:
@@ -89,7 +89,7 @@ with tabs[0]:
             al_dia = df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum()
         else: al_dia = (df_audit == 5).sum().sum()
 
-        st.header(f"Gestion Laboral - {mes_sidebar} {anio_global}")
+        st.header(f"Seguimiento Control Laboral - {mes_sidebar} {anio_global}")
         k1, k2, k3 = st.columns(3)
         k1.metric("Empresas", len(df_f))
         k2.metric("% Cumplimiento Real", f"{perc:.1f}%")
@@ -105,7 +105,7 @@ with tabs[0]:
         # --- REUBICACION: GRAFICO BARRAS JUSTO DEBAJO DE INDICADORES ---
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
-            st.write("### 📈 Evolución Mensual de Estados")
+            st.write("### 📈 Evolución Mensual Estados de Cumplimiento")
             res_evo = []
             for m in cols_m:
                 counts_m = df_f[m].value_counts()
@@ -153,7 +153,7 @@ with tabs[0]:
                 st.session_state["last_selection"] = f"{emp_sel}_{m_pdf_sel}"
                 if "link_descarga" in st.session_state: del st.session_state["link_descarga"]
 
-            if st.button("🔍 Obtener Certificado", use_container_width=True):
+            if st.button("🔍 Obtener y Descargar Certificado", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
                     id_folder = str(match_id.iloc[0]['IDCARPETA']).strip()
@@ -170,7 +170,7 @@ with tabs[0]:
 
             if "link_descarga" in st.session_state:
                 st.success("¡Archivo encontrado!")
-                st.link_button("📥 DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
+                st.link_button("📥 ABRIR / DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
 
             st.divider()
             st.subheader("📝 Observaciones")
