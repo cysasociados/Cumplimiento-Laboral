@@ -1,11 +1,3 @@
-¡Entendido, Sergio! Tienes toda la razón. En un proceso de carga de archivos, si el sistema no "te habla", genera incertidumbre. El problema era que el chequeo del texto que devolvía Google era muy estricto.
-
-He ajustado el código para que sea mucho más sensible a la respuesta de éxito y te muestre un mensaje claro de "Documento cargado exitosamente". Además, he mantenido la estructura completa de las ~250 líneas para que no se pierda la pestaña de Admin ni ninguna otra funcionalidad.
-
-🐍 app.py: Versión con Feedback de Carga Reforzado
-Copia este código. He modificado la lógica de la Pestaña 4 para asegurar que el mensaje aparezca inmediatamente después de la carga.
-
-Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
