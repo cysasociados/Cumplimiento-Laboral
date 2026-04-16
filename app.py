@@ -153,7 +153,7 @@ with tabs[0]:
                 st.session_state["last_selection"] = f"{emp_sel}_{m_pdf_sel}"
                 if "link_descarga" in st.session_state: del st.session_state["link_descarga"]
 
-            if st.button("🔍 Obtener y Descargar Certificado", use_container_width=True):
+            if st.button("🔍 Obtener Certificado", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
                     id_folder = str(match_id.iloc[0]['IDCARPETA']).strip()
@@ -170,7 +170,7 @@ with tabs[0]:
 
             if "link_descarga" in st.session_state:
                 st.success("¡Archivo encontrado!")
-                st.link_button("📥 ABRIR / DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
+                st.link_button("📥 DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
 
             st.divider()
             st.subheader("📝 Observaciones")
