@@ -89,12 +89,6 @@ with st.sidebar:
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 
-# --- CABECERA INTERNA ---
-col_logo_in, col_vacio = st.columns([1, 4])
-with col_logo_in:
-    if os.path.exists("CMSG.png"):
-        st.image("CMSG.png", width=220)
-
 # 4. TABS
 rol = st.session_state["u_rol"]
 tab_list = ["📈 Mi Avance", "👥 Dotacion", "📤 Carga Doc"] if rol == "USUARIO" else ["📈 Avance Global", "🏢 Empresas", "👥 Dotacion", "📤 Carga Doc", "⚙️ Admin"]
