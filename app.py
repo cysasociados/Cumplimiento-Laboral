@@ -215,4 +215,5 @@ with tabs[idx_carga]:
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
             if "Exito" in r.text: st.success("Notificado")
 
-st.caption("CMSG | C&S Asociados Ltda.")
+st.markdown("---")
+st.caption("Sistema desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
