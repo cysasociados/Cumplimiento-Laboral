@@ -22,7 +22,7 @@ with col_logo_r:
     else: st.write("C&S Asociados")
 
 # CONEXION
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxuGe9TQYwyKDHPaKJKiR8XqD14Uk7s8vk9BksMCGNBJb-0BZFj8ztWek9pJ3nDkXIBtQ/exec"
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxjUc1qg_W7i4pkEfAILobbNi16hKsBuUjSXCo8XzoSgjTzomkp2xCirUyhkSTvMlIDeA/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
