@@ -8,7 +8,7 @@ import os
 from datetime import datetime
 import pytz
 
-# 1. CONFIGURACION
+# 1. SELECCIONE PERIODO
 st.set_page_config(page_title="Control de Cumplimiento Laboral CMSG", layout="wide")
 chile_tz = pytz.timezone('America/Santiago')
 
@@ -55,7 +55,7 @@ if "authenticated" not in st.session_state:
 # 3. SIDEBAR
 with st.sidebar:
     st.header("Configuracion")
-    anio_global = st.selectbox("Anio", ["2026", "2025"])
+    anio_global = st.selectbox("Año", ["2026", "2025"])
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Analisis", ["AÑO COMPLETO"] + cols_m)
