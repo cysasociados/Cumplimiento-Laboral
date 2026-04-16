@@ -22,7 +22,7 @@ with col_logo_r:
     else: st.write("**C&S Asociados**")
 
 # --- CONEXIÓN ---
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycb0p_UvG06Tq9oE7Xm0e9m0Z6Lp3-Xp7vO_R_J5Q_6f7f7f7f7f7/exec" # REEMPLAZA CON TU URL FINAL
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
@@ -106,21 +106,34 @@ with tabs[0]:
         # --- KPI EMPRESAS AL DÍA ---
         if mes_sidebar == "AÑO COMPLETO":
             al_dia_count = df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum()
-        else:
-            al_dia_count = (df_audit == 5).sum().sum()
+        else: al_dia_count = (df_audit == 5).sum().sum()
 
-        st.header(f"Gestión de Auditoría - {mes_sidebar} {anio_global}")
+        st.header(f"Dashboard de Auditoría - {mes_sidebar} {anio_global}")
         k1, k2, k3 = st.columns(3)
-        k1.metric("Empresas en Panel", len(df_f))
+        k1.metric("Empresas", len(df_f))
         k2.metric("% Cumplimiento Real", f"{perc_real:.1f}%", help="Ignora estados 9")
         k3.metric("Empresas 100% Al Día", int(al_dia_count))
 
-        # --- RECUPERADO: FILA DE ESTADOS ---
+        # --- RECUENTO POR ESTADOS (RECUPERADO) ---
         st.write("### 📊 Cantidad de Periodos por Estado")
         st_counts = df_num.stack().value_counts()
         m_cols_recuento = st.columns(len(MAPA_ESTADOS))
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_recuento[i].metric(name, int(st_counts.get(code, 0)))
+
+        # --- GRÁFICO DE BARRAS POR ESTADOS (RECUPERADO) ---
+        if mes_sidebar == "AÑO COMPLETO":
+            st.divider()
+            st.write("### 📈 Evolución Mensual de Cumplimiento")
+            res_evo = []
+            for m in cols_m:
+                counts_m = df_f[m].value_counts()
+                for cod, cant in counts_m.items():
+                    if pd.notna(cod):
+                        res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
+            if res_evo:
+                st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', 
+                                       color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
 
         st.divider()
         st.subheader("🎯 Detalle por Empresa y Certificados")
@@ -133,7 +146,7 @@ with tabs[0]:
             pie_data = df_es[cols_m].stack().value_counts().reset_index()
             pie_data.columns = ['Cod', 'Cant']; pie_data['Estado'] = pie_data['Cod'].map(MAPA_ESTADOS)
             pie_final = pie_data[pie_data['Cod'] != 9]
-            st.plotly_chart(px.pie(pie_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución Anual: {emp_sel}"), use_container_width=True)
+            st.plotly_chart(px.pie(pie_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución: {emp_sel}"), use_container_width=True)
             
             # --- HISTORIAL HORIZONTAL (2 LÍNEAS) ---
             st.write("#### 📜 Historial Mensual")
@@ -141,12 +154,12 @@ with tabs[0]:
             row1 = st.columns(6)
             for i, m in enumerate(m_l1):
                 val = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                row1[i].markdown(f"<div style='text-align: center; border: 1px solid #ddd; border-radius: 5px; padding: 5px;'><b>{m}</b><br><span style='font-size: 0.75em; color: #666;'>{MAPA_ESTADOS.get(val)}</span></div>", unsafe_allow_html=True)
-            st.write("") # Espacio entre líneas
+                row1[i].markdown(f"<div style='text-align: center; border: 1px solid #ddd; border-radius: 5px; padding: 5px; background: #f9f9f9;'><b>{m}</b><br><span style='font-size: 0.75em; color: #666;'>{MAPA_ESTADOS.get(val)}</span></div>", unsafe_allow_html=True)
+            st.write("") 
             row2 = st.columns(6)
             for i, m in enumerate(m_l2):
                 val = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                row2[i].markdown(f"<div style='text-align: center; border: 1px solid #ddd; border-radius: 5px; padding: 5px;'><b>{m}</b><br><span style='font-size: 0.75em; color: #666;'>{MAPA_ESTADOS.get(val)}</span></div>", unsafe_allow_html=True)
+                row2[i].markdown(f"<div style='text-align: center; border: 1px solid #ddd; border-radius: 5px; padding: 5px; background: #f9f9f9;'><b>{m}</b><br><span style='font-size: 0.75em; color: #666;'>{MAPA_ESTADOS.get(val)}</span></div>", unsafe_allow_html=True)
 
         with col_desc:
             st.write("#### 📥 Certificados")
@@ -156,16 +169,16 @@ with tabs[0]:
                 if not match.empty:
                     id_f = str(match.iloc[0][0]).strip()
                     nombre_f = f"Certificado.{MAPA_MESES_NUM[m_pdf]}{anio_global}.pdf"
-                    with st.spinner("Buscando..."):
+                    with st.spinner("Buscando en Drive..."):
                         try:
                             r = requests.get(URL_APPS_SCRIPT, params={"nombre": nombre_f, "carpeta": id_f})
                             if r.text.startswith("http"):
                                 st.success("✅ Encontrado")
                                 st.link_button("📥 DESCARGAR", r.text.strip())
-                            else: st.error("No disponible.")
+                            else: st.error("No disponible en Drive.")
                         except: st.error("Error de conexión.")
 
-# --- TAB 2: MASA LABORAL ---
+# --- TAB: MASA LABORAL ---
 idx_masa = tab_list.index("👥 Masa Laboral") if "👥 Masa Laboral" in tab_list else tab_list.index("👥 Masa Colaboradores")
 with tabs[idx_masa]:
     st.header(f"Nómina de Personal - {anio_global}")
@@ -180,7 +193,7 @@ with tabs[idx_masa]:
             if not pf.empty: st.warning(f"🚨 Alerta: {len(pf)} contratos a Plazo Fijo.")
         st.dataframe(df_mf, use_container_width=True)
 
-# --- TAB 3: CARGA ---
+# --- TAB: CARGA ---
 idx_carga = tab_list.index("📤 Carga de Documentos")
 with tabs[idx_carga]:
     st.header("📤 Pasarela de Carga")
@@ -204,6 +217,13 @@ with tabs[idx_carga]:
             p_e = {"accion": "enviar_email", "empresa": emp_up, "usuario": st.session_state["u_nom"], "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]}
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
             if "✅" in r.text: st.success("¡Notificación enviada!"); st.balloons()
+
+# --- TAB ADMIN ---
+if rol == "ADMIN":
+    with tabs[-1]:
+        st.header("⚙️ Admin")
+        if st.session_state["log_accesos"]: st.table(pd.DataFrame(st.session_state["log_accesos"]))
+        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
 st.markdown("---")
 st.caption("CMSG | C&S Asociados Ltda.")
