@@ -21,8 +21,9 @@ with col_logo_r:
     if os.path.exists("cys.png"): st.image("cys.png", width=120)
     else: st.write("**C&S Asociados**")
 
-# --- CONEXIÓN ---
-URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxbH7GCm95Eh0DMkBCNVD9Ce-lywoCqmUC_DraHw7DopQPeIOJ5XamcqHvf0dyBFtw/exec"
+# --- CONEXIÓN (URL ACTUALIZADA) ---
+URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbxuGe9TQYwyKDHPaKJKiR8XqD14Uk7s8vk9BksMCGNBJb-0BZFj8ztWek9pJ3nDkXIBtQ/exec"
+
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
@@ -96,35 +97,37 @@ with tabs[0]:
         cols_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[cols_filt].apply(pd.to_numeric, errors='coerce')
 
-        # --- MATEMÁTICA REAL (ESTADO 9 FUERA) ---
+        # --- MATEMÁTICA DE AUDITORÍA (ESTADO 9 FUERA) ---
         df_audit = df_num.copy()
         df_audit[df_audit == 9] = pd.NA
         total_p = df_audit.count().sum()
         total_5 = (df_audit == 5).sum().sum()
         perc_real = (total_5 / total_p * 100) if total_p > 0 else 0
 
-        # --- KPI EMPRESAS AL DÍA ---
+        # --- KPI EMPRESAS AL DÍA (REFINADO) ---
         if mes_sidebar == "AÑO COMPLETO":
+            # Si todos los meses que NO son 9 son iguales a 5, está al día
             al_dia_count = df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum()
-        else: al_dia_count = (df_audit == 5).sum().sum()
+        else:
+            al_dia_count = (df_audit == 5).sum().sum()
 
         st.header(f"Dashboard de Auditoría - {mes_sidebar} {anio_global}")
         k1, k2, k3 = st.columns(3)
-        k1.metric("Empresas", len(df_f))
-        k2.metric("% Cumplimiento Real", f"{perc_real:.1f}%", help="Ignora estados 9")
+        k1.metric("Empresas en Panel", len(df_f))
+        k2.metric("% Cumplimiento Real", f"{perc_real:.1f}%", help="Ignora periodos marcados como 'No Corresponde Informar'")
         k3.metric("Empresas 100% Al Día", int(al_dia_count))
 
-        # --- RECUENTO POR ESTADOS (RECUPERADO) ---
+        # --- FILA DE RECUENTO POR ESTADOS ---
         st.write("### 📊 Cantidad de Periodos por Estado")
         st_counts = df_num.stack().value_counts()
         m_cols_recuento = st.columns(len(MAPA_ESTADOS))
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_recuento[i].metric(name, int(st_counts.get(code, 0)))
 
-        # --- GRÁFICO DE BARRAS POR ESTADOS (RECUPERADO) ---
+        # --- GRÁFICO DE BARRAS EVOLUTIVO ---
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
-            st.write("### 📈 Evolución Mensual de Cumplimiento")
+            st.write("### 📈 Evolución Mensual de Estados")
             res_evo = []
             for m in cols_m:
                 counts_m = df_f[m].value_counts()
@@ -146,9 +149,9 @@ with tabs[0]:
             pie_data = df_es[cols_m].stack().value_counts().reset_index()
             pie_data.columns = ['Cod', 'Cant']; pie_data['Estado'] = pie_data['Cod'].map(MAPA_ESTADOS)
             pie_final = pie_data[pie_data['Cod'] != 9]
-            st.plotly_chart(px.pie(pie_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución: {emp_sel}"), use_container_width=True)
+            st.plotly_chart(px.pie(pie_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución Anual Auditada: {emp_sel}"), use_container_width=True)
             
-            # --- HISTORIAL HORIZONTAL (2 LÍNEAS) ---
+            # --- HISTORIAL HORIZONTAL (2 LÍNEAS DE 6 MESES) ---
             st.write("#### 📜 Historial Mensual")
             m_l1, m_l2 = cols_m[:6], cols_m[6:]
             row1 = st.columns(6)
@@ -171,6 +174,7 @@ with tabs[0]:
                     nombre_f = f"Certificado.{MAPA_MESES_NUM[m_pdf]}{anio_global}.pdf"
                     with st.spinner("Buscando en Drive..."):
                         try:
+                            # Llama al nuevo Apps Script vía GET
                             r = requests.get(URL_APPS_SCRIPT, params={"nombre": nombre_f, "carpeta": id_f})
                             if r.text.startswith("http"):
                                 st.success("✅ Encontrado")
@@ -193,7 +197,7 @@ with tabs[idx_masa]:
             if not pf.empty: st.warning(f"🚨 Alerta: {len(pf)} contratos a Plazo Fijo.")
         st.dataframe(df_mf, use_container_width=True)
 
-# --- TAB: CARGA ---
+# --- TAB: CARGA DE DOCUMENTOS ---
 idx_carga = tab_list.index("📤 Carga de Documentos")
 with tabs[idx_carga]:
     st.header("📤 Pasarela de Carga")
@@ -213,7 +217,7 @@ with tabs[idx_carga]:
                             r = requests.post(URL_APPS_SCRIPT, data=payload)
                             if "✅" in r.text or "Exito" in r.text: st.success("¡Cargado!"); st.balloons()
         st.divider()
-        if st.button("✅ FINALIZAR Y NOTIFICAR", use_container_width=True):
+        if st.button("✅ ENVIAR NOTIFICACIÓN DE CARGA FINALIZADA", use_container_width=True):
             p_e = {"accion": "enviar_email", "empresa": emp_up, "usuario": st.session_state["u_nom"], "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]}
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
             if "✅" in r.text: st.success("¡Notificación enviada!"); st.balloons()
