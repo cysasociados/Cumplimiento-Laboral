@@ -33,15 +33,16 @@ def cargar_datos(sheet_id, p):
         return df.dropna(how='all')
     except: return pd.DataFrame()
 
-# 2. LOGIN (CON LOGO Y SALUDO)
+# 2. LOGIN (CON LOGO Y SALUDO PERSONALIZADO)
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
+        # Logo en Pantalla de Inicio
         if os.path.exists("CMSG.png"):
-            st.image("CMSG.png", width=350)
+            st.image("CMSG.png", use_container_width=True)
         
-        st.title("Acceso a Control Laboral de CMSG")
+        st.title("Acceso al Portal Laboral")
         pwd = st.text_input("Ingrese su contraseña de acceso:", type="password").strip()
         
         if st.button("Ingresar", use_container_width=True):
@@ -52,50 +53,48 @@ if "authenticated" not in st.session_state:
                 match = df_u[df_u[col_c] == pwd]
                 if not match.empty:
                     u = match.iloc[0]
-                    # Saludo inmediato
-                    nombre_user = u.get('NOMBRE','')
-                    st.success(f"¡Bienvenido(a), {nombre_user}! Cargando panel...")
+                    # Saludo de Bienvenida
+                    nombre_u = u.get('NOMBRE','')
+                    st.success(f"✅ ¡Bienvenido(a), {nombre_u}! Accediendo al sistema...")
                     
                     st.session_state.update({
                         "authenticated": True, 
-                        "u_nom": nombre_user, 
+                        "u_nom": nombre_u, 
                         "u_rol": u.get('ROL',''), 
                         "u_emp": u.get('EMPRESA',''), 
                         "u_email": u.get('EMAIL','')
                     })
                     st.rerun()
-                else: st.error("Clave incorrecta")
+                else: st.error("❌ Clave incorrecta. Intente nuevamente.")
     st.stop()
 
-# 3. SIDEBAR (CON IDENTIFICACION DE USUARIO Y EECC)
+# 3. SIDEBAR (PERFIL DE USUARIO Y FILTROS)
 with st.sidebar:
-    # Logo en el sidebar
+    # Logo en Sidebar
     if os.path.exists("CMSG.png"):
         st.image("CMSG.png", use_container_width=True)
     
-    # Tarjeta de Identificación
+    # Credencial Digital del Usuario
     st.markdown("---")
     st.markdown(f"👤 **Usuario:** {st.session_state['u_nom']}")
-    # Si es EECC, resaltamos la empresa
-    empresa_label = st.session_state['u_emp']
-    st.markdown(f"🏢 **Empresa:** {empresa_label}")
+    st.markdown(f"🏢 **Empresa:** {st.session_state['u_emp']}")
     st.markdown(f"🔑 **Rol:** {st.session_state['u_rol']}")
     st.markdown("---")
     
     st.header("Seleccione Periodo")
-    anio_global = st.selectbox("Año", ["2026", "2025"])
+    anio_global = st.selectbox("Año de Auditoría", ["2026", "2025"])
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Análisis", ["AÑO COMPLETO"] + cols_m)
     
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("Cerrar Sesión", use_container_width=True):
+    if st.button("🚪 Cerrar Sesión", use_container_width=True):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 
 # 4. TABS
 rol = st.session_state["u_rol"]
-tab_list = ["Mi Avance", "Dotacion", "Carga Doc"] if rol == "USUARIO" else ["Avance Global", "Empresas", "Dotacion", "Carga Doc", "Admin"]
+tab_list = ["📈 Mi Avance", "👥 Dotacion", "📤 Carga Doc"] if rol == "USUARIO" else ["📈 Avance Global", "🏢 Empresas", "👥 Dotacion", "📤 Carga Doc", "⚙️ Admin"]
 tabs = st.tabs(tab_list)
 
 # TAB 1: DASHBOARD
@@ -107,14 +106,13 @@ with tabs[0]:
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
 
-        # --- MATEMATICA SIN ESTADO 9 ---
+        # --- Lógica de Matemática Real (Sin el 9) ---
         df_audit = df_num.copy()
         df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum()
         t_5 = (df_audit == 5).sum().sum()
         perc = (t_5 / t_p * 100) if t_p > 0 else 0
 
-        # KPI AL DIA
         if mes_sidebar == "AÑO COMPLETO":
             al_dia = df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum()
         else: al_dia = (df_audit == 5).sum().sum()
@@ -125,14 +123,14 @@ with tabs[0]:
         k2.metric("% Cumplimiento Real", f"{perc:.1f}%")
         k3.metric("Empresas 100% Al Día", int(al_dia))
 
-        # PERIODOS POR ESTADO
+        # Recuento de Estados
         st.write("###")
         st_c = df_num.stack().value_counts()
         m_cols_res = st.columns(len(MAPA_ESTADOS))
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
-        # --- GRAFICO BARRAS EVOLUTIVO ---
+        # Evolución Mensual
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
             st.write("### 📈 Evolución Mensual Estados de Cumplimiento")
@@ -150,23 +148,23 @@ with tabs[0]:
         df_es = df_f[df_f[col_e] == emp_sel]
         row_sel = df_es.iloc[0]
 
-        # --- LAYOUT VISUAL ---
+        # --- Distribución Visual ---
         col_izq, col_der = st.columns([3, 1.2])
 
         with col_izq:
-            # GRAFICO CIRCULAR
+            # Gráfico Circular
             p_d = df_es[cols_m].stack().value_counts().reset_index()
             p_d.columns = ['Cod', 'Cant']; p_d['Estado'] = p_d['Cod'].map(MAPA_ESTADOS)
             p_final = p_d[p_d['Cod'] != 9]
-            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución de Cumplimiento: {emp_sel}"), use_container_width=True)
+            st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución: {emp_sel}"), use_container_width=True)
             
-            # --- HISTORIAL VISUAL CON COLORES ---
+            # --- HISTORIAL VISUAL CROMÁTICO ---
             st.write("#### 📜 Historial Mensual")
             m1, m2 = cols_m[:6], cols_m[6:]
             
-            def dibujar_meses(lista_meses):
+            def dibujar_grid_meses(lista):
                 cols = st.columns(6)
-                for i, m in enumerate(lista_meses):
+                for i, m in enumerate(lista):
                     cod_val = df_es[m].values[0]
                     cod = int(cod_val) if pd.notna(cod_val) else 8
                     txt = MAPA_ESTADOS.get(cod, "Sin Info")
@@ -175,14 +173,14 @@ with tabs[0]:
                     
                     cols[i].markdown(f"""
                         <div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; 
-                        background-color:{bg}; color:{tc}; min-height:60px; display:flex; flex-direction:column; justify-content:center;'>
+                        background-color:{bg}; color:{tc}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'>
                         <b style='font-size:13px;'>{m}</b><br><span style='font-size:9px; font-weight:bold;'>{txt.upper()}</span>
                         </div>
                     """, unsafe_allow_html=True)
 
-            dibujar_meses(m1)
+            dibujar_grid_meses(m1)
             st.write("")
-            dibujar_meses(m2)
+            dibujar_grid_meses(m2)
 
         with col_der:
             st.subheader("📄 Certificado")
@@ -192,14 +190,14 @@ with tabs[0]:
                 st.session_state["last_selection"] = f"{emp_sel}_{m_pdf_sel}"
                 if "link_descarga" in st.session_state: del st.session_state["link_descarga"]
 
-            if st.button("🔍 Obtener y Descargar Certificado", use_container_width=True):
+            if st.button("🔍 Obtener Certificado", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
                     id_folder = str(match_id.iloc[0]['IDCARPETA']).strip()
                     mm = MAPA_MESES_NUM[m_pdf_sel]
                     nombre_f = f"Certificado.{mm}{anio_global}.pdf"
                     
-                    with st.spinner("Buscando archivo..."):
+                    with st.spinner("Conectando con Drive..."):
                         try:
                             r = requests.get(URL_APPS_SCRIPT, params={"nombre": nombre_f, "carpeta": id_folder}, timeout=15)
                             if r.text.startswith("http"):
@@ -208,30 +206,28 @@ with tabs[0]:
                         except: st.error("Error de conexión.")
 
             if "link_descarga" in st.session_state:
-                st.success("¡Archivo encontrado!")
-                st.link_button("📥 ABRIR / DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
+                st.success("¡Encontrado!")
+                st.link_button("📥 DESCARGAR PDF", st.session_state["link_descarga"], use_container_width=True)
 
             st.divider()
             st.subheader("📝 Observaciones")
             col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
             if col_o and pd.notna(row_sel[col_o]):
                 st.warning(row_sel[col_o])
-            else: st.info("Sin observaciones.")
+            else: st.info("Sin observaciones registradas.")
 
-# TABS DOTACION Y CARGA
-idx_masa = tab_list.index("Dotacion")
-with tabs[idx_masa]:
-    st.header(f"Dotación de Personal - {anio_global}")
-    mes_m = st.selectbox("Mes Masa:", MESES_LISTA, key="m_masa")
-    df_m = cargar_datos(ID_COLABORADORES, f"{mes_m.capitalize()}{anio_global[-2:]}")
+# TABS ADICIONALES
+with tabs[tab_list.index("👥 Dotacion")]:
+    st.header(f"Nómina de Personal - {anio_global}")
+    mes_dot = st.selectbox("Filtrar Mes:", MESES_LISTA, key="m_masa")
+    df_m = cargar_datos(ID_COLABORADORES, f"{mes_dot.capitalize()}{anio_global[-2:]}")
     if not df_m.empty:
         c_rs = next((c for c in df_m.columns if 'RAZON' in str(c).upper()), df_m.columns[0])
         st.dataframe(df_m[df_m[c_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_m, use_container_width=True)
 
-idx_carga = tab_list.index("Carga Doc")
-with tabs[idx_carga]:
-    st.header("Carga de Documentación")
-    if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un mes en el panel lateral.")
+with tabs[tab_list.index("📤 Carga Doc")]:
+    st.header("Pasarela de Carga de Documentación")
+    if mes_sidebar == "AÑO COMPLETO": st.warning("Por favor, seleccione un mes específico en el panel lateral.")
     else:
         emp_u = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa Destino:", sorted(df_av[col_e].unique()))
         docs = [("Liquidaciones", "LIQ"), ("Previred", "PREVIRED"), ("F30", "F30"), ("F30-1", "F30_1"), ("Pagos", "PAGOS")]
@@ -245,12 +241,12 @@ with tabs[idx_carga]:
                         id_f_u = str(mt.iloc[0]['IDCARPETA']).strip()
                         payload = {"nombre_final": f"{p}_{mes_sidebar}_{anio_global}_{emp_u[:10]}.pdf", "id_carpeta": id_f_u, "anio": anio_global, "mes_nombre": f"{(MESES_LISTA.index(mes_sidebar)+1):02d}_{mes_sidebar}", "mimetype": "application/pdf", "archivo_base64": base64.b64encode(arch.read()).decode('utf-8')}
                         r = requests.post(URL_APPS_SCRIPT, data=payload)
-                        if "Exito" in r.text: st.success("Cargado"); st.balloons()
+                        if "Exito" in r.text: st.success("¡Cargado!"); st.balloons()
         st.divider()
-        if st.button("Finalizar Proceso y Notificar"):
+        if st.button("🏁 Finalizar y Notificar"):
             p_e = {"accion": "enviar_email", "empresa": emp_u, "usuario": st.session_state["u_nom"], "periodo": f"{mes_sidebar} {anio_global}", "email_usuario": st.session_state["u_email"]}
             r = requests.post(URL_APPS_SCRIPT, data=p_e)
-            if "Exito" in r.text: st.success("Notificación Enviada")
+            if "Exito" in r.text: st.success("Notificación Enviada con éxito")
 
 st.markdown("---")
 st.caption("Sistema desarrollado por C & S Asociados Ltda. para Control Laboral CMSG")
