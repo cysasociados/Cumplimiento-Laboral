@@ -9,7 +9,7 @@ from datetime import datetime
 import pytz
 
 # 1. CONFIGURACION
-st.set_page_config(page_title="Control de Cumplimiento Laboral CMSG", layout="wide")
+st.set_page_config(page_title="Control de Cumplimiento Laboral CMSG", layout="wide", page_icon="🛡️")
 chile_tz = pytz.timezone('America/Santiago')
 
 # CONEXION
@@ -51,6 +51,14 @@ if "authenticated" not in st.session_state:
                     st.rerun()
                 else: st.error("Clave incorrecta")
     st.stop()
+
+# --- CABECERA CON LOGO ---
+col_logo, col_tit = st.columns([1, 4])
+with col_logo:
+    if os.path.exists("CMSG.png"):
+        st.image("CMSG.png", width=220)
+    else:
+        st.write("🏢 **CMSG**")
 
 # 3. SIDEBAR
 with st.sidebar:
@@ -102,7 +110,7 @@ with tabs[0]:
         for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
-        # --- REUBICACION: GRAFICO BARRAS JUSTO DEBAJO DE INDICADORES ---
+        # --- GRAFICO BARRAS JUSTO DEBAJO DE INDICADORES ---
         if mes_sidebar == "AÑO COMPLETO":
             st.divider()
             st.write("### 📈 Evolución Mensual Estados de Cumplimiento")
@@ -130,25 +138,34 @@ with tabs[0]:
             p_final = p_d[p_d['Cod'] != 9]
             st.plotly_chart(px.pie(p_final, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribucion: {emp_sel}"), use_container_width=True)
             
-            # HISTORIAL (DEBAJO DEL GRAFICO)
+            # --- HISTORIAL VISUAL CON COLORES (DEBAJO DEL GRAFICO) ---
             st.write("#### 📜 Historial Mensual")
             m1, m2 = cols_m[:6], cols_m[6:]
-            r1 = st.columns(6)
-            for i, m in enumerate(m1):
-                v = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                r1[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(v)}</small></div>", unsafe_allow_html=True)
+            
+            def dibujar_meses(lista_meses):
+                cols = st.columns(6)
+                for i, m in enumerate(lista_meses):
+                    cod = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
+                    txt = MAPA_ESTADOS.get(cod, "Sin Info")
+                    bg = COLORES_ESTADOS.get(txt, "#555555")
+                    # Lógica de color de texto para contraste
+                    tc = "#000000" if txt in ["Observado", "Cumple"] else "#FFFFFF"
+                    
+                    cols[i].markdown(f"""
+                        <div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; 
+                        background-color:{bg}; color:{tc}; min-height:60px; display:flex; flex-direction:column; justify-content:center;'>
+                        <b style='font-size:14px;'>{m}</b><br><span style='font-size:10px; font-weight:bold;'>{txt.upper()}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            dibujar_meses(m1)
             st.write("")
-            r2 = st.columns(6)
-            for i, m in enumerate(m2):
-                v = int(df_es[m].values[0]) if pd.notna(df_es[m].values[0]) else 8
-                r2[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:5px; border-radius:5px; background:#f9f9f9;'><b>{m}</b><br><small>{MAPA_ESTADOS.get(v)}</small></div>", unsafe_allow_html=True)
+            dibujar_meses(m2)
 
         with col_der:
-            # --- SIMPLIFICACION: BUSQUEDA Y DESCARGA EN UN SOLO FLUJO ---
             st.subheader("📄 Certificado")
             m_pdf_sel = st.selectbox("Mes para PDF:", cols_m, key="sel_pdf")
             
-            # Al cambiar de mes o empresa, reseteamos el link para forzar nueva búsqueda
             if "last_selection" not in st.session_state or st.session_state["last_selection"] != f"{emp_sel}_{m_pdf_sel}":
                 st.session_state["last_selection"] = f"{emp_sel}_{m_pdf_sel}"
                 if "link_descarga" in st.session_state: del st.session_state["link_descarga"]
