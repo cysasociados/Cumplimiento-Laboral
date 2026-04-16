@@ -41,7 +41,7 @@ if "authenticated" not in st.session_state:
         if os.path.exists("CMSG.png"):
             st.image("CMSG.png", width=350)
         
-        st.title("Acceso al Portal Laboral")
+        st.title("Acceso a Control Laboral de CMSG")
         pwd = st.text_input("Ingrese su contraseña de acceso:", type="password").strip()
         
         if st.button("Ingresar", use_container_width=True):
