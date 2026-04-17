@@ -1,19 +1,3 @@
-Sergio, tienes toda la razón. El error que experimentaste (ese "NameError" de la pantalla roja) ocurrió porque en el código que me pasaste para revisar se definía la columna como col_c pero se intentaba usar como col_clave. Además, para que el mensaje de "200MB" desaparezca de verdad, necesitamos un "inyector" de estilo (CSS) más específico.
-
-He reconstruido el código línea por línea, asegurando que:
-
-Login Blindado: Se corrigió el error de variables. Ahora cualquier usuario (EECC o Administrador) entrará sin problemas.
-
-Adiós al "200MB": Agregué un bloque de código oculto que borra ese texto gris de Streamlit por completo.
-
-Control de 20MB: El sistema ahora vigila el peso de cada archivo y bloquea la subida si se pasa.
-
-Estructura Completa: Volvemos a las 340 líneas. No se perdió ninguna funcionalidad de las versiones anteriores.
-
-Aquí tienes la Versión 29 (Edición Maestra Final):
-
-🐍 app.py: Versión 29 - Login Corregido y Estética Limpia
-Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
