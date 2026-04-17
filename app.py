@@ -215,7 +215,7 @@ with tabs[2]:
         st.divider()
         if "c_send" not in st.session_state: st.session_state.c_send = False
         if not st.session_state.c_send:
-            if st.button("🏁 FINALIZAR Y NOTIFICAR CMSG", use_container_width=True): st.session_state.c_send = True; st.rerun()
+            if st.button("🏁 FINALIZAR Y NOTIFICAR ", use_container_width=True): st.session_state.c_send = True; st.rerun()
         else:
             st.warning("⚠️ ¿Confirmar envío mensual de documentos?")
             c1, c2 = st.columns(2)
@@ -237,11 +237,12 @@ with tabs[3]:
         <h4 style='margin-top:0;'>📌 Recordatorio</h4>
         <small>Documentos requeridos:</small>
         <ul style='font-size:11px; padding-left:15px;'>
-            <li>Contrato de Trabajo / Anexo</li>
+            <li>Contrato de Trabajo / Anexo de Contrato</li>
             <li>Cédula de Identidad</li>
             <li>Certificado AFP / Salud</li>
             <li>Pacto Horas Extras</li>
             <li>Entrega RIOH / EPP</li>
+            <li>Comp Registro Contrato DT / EPP</li>
         </ul>
         </div>
         """, unsafe_allow_html=True)
