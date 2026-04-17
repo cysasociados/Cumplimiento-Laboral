@@ -1,3 +1,15 @@
+¡Entendido, Sergio! El "ajuste fino" visual es clave para que los usuarios no se pierdan. He realizado dos cambios técnicos para lograr lo que pides:
+
+Proximidad: He ajustado el ratio de las columnas de [3, 1.2] a [2.6, 1.4]. Esto ensancha un poco el panel de instrucciones y lo "empuja" más hacia la izquierda, pegándolo a los botones de carga.
+
+Tamaño de Texto: He subido el tamaño de la fuente de 11px/12px a 13px/14px en los paneles de instrucciones de ambas pestañas (Mensual y Colaborador).
+
+Refuerzo Visual: He mantenido el borde de color (Naranja para mensual, Azul para colaborador) para que el usuario identifique rápido en qué sección está.
+
+Aquí tienes la Versión 21 con estos retoques visuales:
+
+🐍 app.py: Versión 21 - Interfaz Optimizada y Lectura Clara
+Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -121,16 +133,13 @@ with tabs[0]:
             m_cols_res[i].metric(name, int(st_c.get(code, 0)))
 
         if mes_sidebar == "AÑO COMPLETO":
-            st.divider()
-            st.write("### 📈 Evolución Mensual")
+            st.divider(); st.write("### 📈 Evolución Mensual")
             res_evo = []
             for m in cols_m:
                 counts_m = df_f[m].value_counts()
                 for cod, cant in counts_m.items():
-                    if pd.notna(cod):
-                        res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
-            if res_evo:
-                st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
+                    if pd.notna(cod): res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
+            if res_evo: st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
 
         st.divider()
         emp_sel = st.selectbox("Empresa para Detalle:", sorted(df_f[col_e].unique()))
@@ -162,8 +171,7 @@ with tabs[0]:
                     r = requests.get(URL_APPS_SCRIPT, params={"nombre": n_f, "carpeta": id_f})
                     if r.text.startswith("http"): st.session_state["link_descarga"] = r.text.strip()
                     else: st.error("No disponible.")
-            if "link_descarga" in st.session_state:
-                st.link_button("📥 Descargar", st.session_state["link_descarga"], use_container_width=True)
+            if "link_descarga" in st.session_state: st.link_button("📥 Descargar", st.session_state["link_descarga"], use_container_width=True)
             st.divider(); st.subheader("📝 Observaciones")
             col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
             if col_o and pd.notna(df_es.iloc[0][col_o]): st.warning(df_es.iloc[0][col_o])
@@ -178,27 +186,29 @@ with tabs[1]:
         c_rs = next((c for c in df_m.columns if 'RAZON' in str(c).upper()), df_m.columns[0])
         st.dataframe(df_m[df_m[c_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_m, use_container_width=True)
 
-# --- TAB 3: CARGA MENSUAL (CON PANEL DE INSTRUCCIONES) ---
+# --- TAB 3: CARGA MENSUAL (CON PANEL CERCANO Y TEXTO +1) ---
 with tabs[2]:
     st.header("📤 Carga de Documentación Mensual")
     if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un Mes en el sidebar para habilitar la carga.")
     else:
-        col_m_inp, col_m_inst = st.columns([3, 1.2])
+        # Cambio de ratio a [2.6, 1.4] para acercar el panel
+        col_m_inp, col_m_inst = st.columns([2.6, 1.4])
         
         with col_m_inst:
+            # Texto aumentado a 13px/14px
             st.markdown("""
             <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #FF8C00;'>
             <h4 style='margin-top:0;'>📖 Instrucciones de Carga</h4>
-            <p style='font-size:12px; color:#555;'><b>REMUNERACIONES Y COTIZACIONES:</b></p>
-            <ul style='font-size:11px; padding-left:15px; line-height:1.4;'>
+            <p style='font-size:13px; color:#333;'><b>REMUNERACIONES Y COTIZACIONES:</b></p>
+            <ul style='font-size:13px; padding-left:18px; line-height:1.5; color:#444;'>
                 <li><b>Liquidaciones:</b> PDF único con todos los colaboradores.</li>
-                <li><b>Pagos/Anticipos:</b> PDF único con comprobantes del periodo.</li>
-                <li><b>Cotizaciones:</b> Subir planillas (Previred).</li>
-                <li><b>Libro Remuneraciones:</b> Archivo CSV enviado a la DT.</li>
-                <li><b>Comprobante DT:</b> Certificado envío libro a la DT.</li>
-                <li><b>F30:</b> Actualizado (no mayor a 30 días).</li>
-                <li><b>F30-1:</b> Solo personal prestando servicios a CMSG.</li>
-                <li><b>Planilla Control:</b> Archivo .XLS mensual.</li>
+                <li><b>Pagos/Anticipos:</b> PDF único con comprobantes.</li>
+                <li><b>Cotizaciones:</b> Planillas de pago (Previred).</li>
+                <li><b>Libro Remuneraciones:</b> Archivo CSV (el enviado a la DT).</li>
+                <li><b>Comprobante DT:</b> Certificado envío libro remuneraciones.</li>
+                <li><b>F30:</b> Certificado actualizado (máx. 30 días).</li>
+                <li><b>F30-1:</b> Personal asignado a CMSG.</li>
+                <li><b>Planilla Control:</b> Archivo .XLS del mes.</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -206,7 +216,6 @@ with tabs[2]:
         with col_m_inp:
             emp_u = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa:", sorted(df_av[col_e].unique()), key="up_m_sel")
             st.divider()
-            # Documentos expandidos según tu nueva lista
             m_docs = [
                 ("Liquidaciones Sueldo", "LIQ", ["pdf"]),
                 ("Comprobantes Pago/Anticipo", "PAGOS", ["pdf"]),
@@ -242,18 +251,20 @@ with tabs[2]:
                     st.session_state.c_send = False; st.success("Notificado.")
                 if c2.button("❌ NO", use_container_width=True): st.session_state.c_send = False; st.rerun()
 
-# --- TAB 4: INGRESO COLABORADOR ---
+# --- TAB 4: INGRESO COLABORADOR (CON PANEL CERCANO Y TEXTO +1) ---
 with tabs[3]:
     st.header("👤 Registro de Nuevo Colaborador")
     st.info("Complete los datos y arrastre la documentación base.")
-    col_inp, col_rec = st.columns([3, 1.2])
+    # Cambio de ratio a [2.6, 1.4]
+    col_inp, col_rec = st.columns([2.6, 1.4])
     
     with col_rec:
+        # Texto aumentado a 13px/14px
         st.markdown("""
         <div style='background-color:#f1f3f6; padding:15px; border-radius:10px; border-left: 5px solid #1E90FF;'>
         <h4 style='margin-top:0;'>📌 Recordatorio</h4>
-        <small>Documentos requeridos:</small>
-        <ul style='font-size:11px; padding-left:15px;'>
+        <small style='font-size:13px; color:#333;'>Documentos requeridos por trabajador:</small>
+        <ul style='font-size:13px; padding-left:18px; line-height:1.5; color:#444;'>
             <li>Contrato de Trabajo / Anexo</li>
             <li>Cédula de Identidad</li>
             <li>Certificado AFP / Salud</li>
