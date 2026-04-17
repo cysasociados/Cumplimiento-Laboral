@@ -14,20 +14,23 @@ import pytz
 st.set_page_config(page_title="Control de Cumplimiento Laboral CMSG", layout="wide", page_icon="🛡️")
 chile_tz = pytz.timezone('America/Santiago')
 
+# URL PROPORCIONADA POR SERGIO
 URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwt9t5vQBsijY4eI9yF-sI82ctU5HGuW8xE2WVPwUBjOvaqGSGh7bi1DZaazU7NQEavfA/exec"
 
+# IDS DE LAS HOJAS DE GOOGLE DRIVE
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
+# MAPEOS DE ESTADOS Y COLORES
 MAPA_ESTADOS = {1:"Carga Doc.", 2:"En Revision", 3:"Observado", 4:"No Cumple", 5:"Cumple", 8:"Sin Info", 9:"No Corresp."}
 COLORES_ESTADOS = {"Cumple":"#00FF00", "No Cumple":"#FF0000", "Observado":"#FFFF00", "En Revision":"#1E90FF", "Carga Doc.":"#FF8C00", "Sin Info":"#555555", "No Corresp.":"#8B4513"}
 MESES_LISTA = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC']
 MAPA_MESES_NUM = {'ENE':'01','FEB':'02','MAR':'03','ABR':'04','MAY':'05','JUN':'06','JUL':'07','AGO':'08','SEP':'09','OCT':'10','NOV':'11','DIC':'12'}
 MAPA_MESES_CARP = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','MAY':'05_MAY','JUN':'06_JUN','JUL':'07_JUL','AGO':'08_AGO','SEP':'09_SEP','OCT':'10_OCT','NOV':'11_NOV','DIC':'12_DIC'}
 
-# --- FUNCIÓN: VALIDACIÓN DE RUT ---
+# --- FUNCIÓN: VALIDACIÓN MATEMÁTICA DE RUT ---
 def validar_rut(rut):
     rut = rut.replace(".", "").replace("-", "").upper()
     if not re.match(r"^\d{7,8}[0-9K]$", rut): return False
@@ -51,7 +54,7 @@ def cargar_datos(sheet_id, p):
     except: return pd.DataFrame()
 
 # ==========================================
-# 2. LOGIN
+# 2. CONTROL DE ACCESO (LOGIN)
 # ==========================================
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -60,11 +63,11 @@ if "authenticated" not in st.session_state:
         if os.path.exists("CMSG.png"): st.image("CMSG.png", width=220)
         st.title("Control Laboral CMSG")
         pwd = st.text_input("Contraseña Corporativa:", type="password").strip()
-        if st.button("Ingresar", use_container_width=True):
+        if st.button("Ingresar al Portal", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_u.empty:
-                col_c = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
-                match = df_u[df_u[col_c].astype(str).str.strip() == pwd]
+                col_clave = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
+                match = df_u[df_u[col_clave].astype(str).str.strip() == pwd]
                 if not match.empty:
                     u = match.iloc[0]; n_u = u.get('NOMBRE','')
                     st.success(f"Bienvenido(a), {n_u}")
@@ -84,7 +87,7 @@ with st.sidebar:
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Análisis", ["AÑO COMPLETO"] + cols_m)
-    if st.button("Cerrar Sesión", use_container_width=True):
+    if st.button("🚪 Cerrar Sesión", use_container_width=True):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 
@@ -96,23 +99,25 @@ tab_list = ["📈 Dashboard", "👥 Dotación", "📤 Carga Mensual", "👤 Ingr
 if rol != "USUARIO": tab_list.append("⚙️ Admin")
 tabs = st.tabs(tab_list)
 
-# --- TAB 1: DASHBOARD ---
+# --- TAB 1: DASHBOARD (RESTAURADO COMPLETO) ---
 with tabs[0]:
     df_id_empresas = cargar_datos(ID_EMPRESAS, "HOJA1")
     if not df_av.empty:
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
         df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
+        
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
         df_audit = df_num.copy(); df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum(); t_5 = (df_audit == 5).sum().sum()
         perc = (t_5 / t_p * 100) if t_p > 0 else 0
+        
         st.header(f"Seguimiento Laboral - {mes_sidebar} {anio_global}")
         k1, k2, k3 = st.columns(3)
         k1.metric("Empresas", len(df_f)); k2.metric("% Cumplimiento", f"{perc:.1f}%"); k3.metric("Al Día", int(df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum() if mes_sidebar == "AÑO COMPLETO" else (df_audit == 5).sum().sum()))
 
         if mes_sidebar == "AÑO COMPLETO":
-            st.divider(); st.write("### 📈 Evolución Mensual")
+            st.divider(); st.write("### 📈 Evolución Mensual de Estados")
             res_evo = []
             for m in cols_m:
                 counts_m = df_f[m].value_counts()
@@ -134,11 +139,13 @@ with tabs[0]:
                     cs[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{b}; color:{tc}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'><b style='font-size:11px;'>{m}</b><br><span style='font-size:8px; font-weight:bold;'>{t.upper()}</span></div>", unsafe_allow_html=True)
             draw_grid_c(m1); st.write(""); draw_grid_c(m2)
         with c_de:
-            st.subheader("📄 Certificado"); m_pdf = st.selectbox("Mes PDF:", cols_m, key="s_pdf_dash")
+            st.subheader("📄 Certificado")
+            m_pdf = st.selectbox("Mes PDF:", cols_m, key="s_pdf_dash")
             if st.button("Obtener PDF", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
-                    id_f = str(match_id.iloc[0]['IDCARPETA']).strip(); n_f = f"Certificado.{MAPA_MESES_NUM[m_pdf]}{anio_global}.pdf"
+                    id_f = str(match_id.iloc[0]['IDCARPETA']).strip()
+                    n_f = f"Certificado.{MAPA_MESES_NUM[m_pdf]}{anio_global}.pdf"
                     r = requests.get(URL_APPS_SCRIPT, params={"nombre": n_f, "carpeta": id_f})
                     if r.text.startswith("http"): st.session_state["link_descarga"] = r.text.strip()
                     else: st.error("No disponible.")
@@ -155,12 +162,12 @@ with tabs[1]:
         c_rs = next((c for c in df_m.columns if 'RAZON' in str(c).upper()), df_m.columns[0])
         st.dataframe(df_m[df_m[c_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_m, use_container_width=True)
 
-# --- TAB 3: CARGA MENSUAL (MÁXIMA CERCANÍA Y TEXTO 14PX) ---
+# --- TAB 3: CARGA MENSUAL (DISEÑO DE MÁXIMA PROXIMIDAD) ---
 with tabs[2]:
     st.header("📤 Carga de Documentación Mensual")
     if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un Mes en el sidebar para cargar.")
     else:
-        # Ratio [1.7, 1.3] para 'pegar' el panel a los botones
+        # Ratio [1.7, 1.3] para pegar el panel a los botones
         col_m_inp, col_m_inst = st.columns([1.7, 1.3])
         
         with col_m_inst:
@@ -184,6 +191,7 @@ with tabs[2]:
         with col_m_inp:
             emp_u = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa:", sorted(df_av[col_e].unique()), key="up_m_sel")
             st.divider()
+            # LISTA COMPLETA DE DOCUMENTOS
             m_docs = [
                 ("Liquidaciones Sueldo", "LIQ", ["pdf"]),
                 ("Comprobantes Pago/Anticipo", "PAGOS", ["pdf"]),
@@ -195,7 +203,7 @@ with tabs[2]:
                 ("Planilla Control (.XLS)", "CONTROL", ["xlsx", "xls"])
             ]
             for n, p, e in m_docs:
-                # Columnas internas [4, 2, 0.5] para que el botón esté pegado a la instrucción
+                # Columnas [4, 2, 0.5] para cercanía máxima
                 cf, cb, cs = st.columns([4, 2, 0.5])
                 with cf: a = st.file_uploader(f"Subir {n}", type=e, key=f"m_{p}")
                 with cb:
