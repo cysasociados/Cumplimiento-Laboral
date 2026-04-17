@@ -27,7 +27,7 @@ MESES_LISTA = ['ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV'
 MAPA_MESES_NUM = {'ENE':'01','FEB':'02','MAR':'03','ABR':'04','MAY':'05','JUN':'06','JUL':'07','AGO':'08','SEP':'09','OCT':'10','NOV':'11','DIC':'12'}
 MAPA_MESES_CARP = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','MAY':'05_MAY','JUN':'06_JUN','JUL':'07_JUL','AGO':'08_AGO','SEP':'09_SEP','OCT':'10_OCT','NOV':'11_NOV','DIC':'12_DIC'}
 
-# --- FUNCIÓN: VALIDACIÓN MATEMÁTICA DE RUT ---
+# --- FUNCIÓN: VALIDACIÓN DE RUT ---
 def validar_rut(rut):
     rut = rut.replace(".", "").replace("-", "").upper()
     if not re.match(r"^\d{7,8}[0-9K]$", rut): return False
@@ -60,11 +60,11 @@ if "authenticated" not in st.session_state:
         if os.path.exists("CMSG.png"): st.image("CMSG.png", width=220)
         st.title("Control Laboral CMSG")
         pwd = st.text_input("Contraseña Corporativa:", type="password").strip()
-        if st.button("Ingresar al Portal", use_container_width=True):
+        if st.button("Ingresar", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_u.empty:
-                col_clave = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
-                match = df_u[df_u[col_clave].astype(str).str.strip() == pwd]
+                col_c = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
+                match = df_u[df_u[col_c].astype(str).str.strip() == pwd]
                 if not match.empty:
                     u = match.iloc[0]; n_u = u.get('NOMBRE','')
                     st.success(f"Bienvenido(a), {n_u}")
@@ -84,7 +84,7 @@ with st.sidebar:
     df_av = cargar_datos(ID_AVANCE, anio_global)
     cols_m = [c for c in df_av.columns if c in MESES_LISTA] if not df_av.empty else []
     mes_sidebar = st.selectbox("Mes de Análisis", ["AÑO COMPLETO"] + cols_m)
-    if st.button("🚪 Cerrar Sesión", use_container_width=True):
+    if st.button("Cerrar Sesión", use_container_width=True):
         for key in list(st.session_state.keys()): del st.session_state[key]
         st.rerun()
 
@@ -103,22 +103,13 @@ with tabs[0]:
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
         df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
-        
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
         df_audit = df_num.copy(); df_audit[df_audit == 9] = pd.NA
         t_p = df_audit.count().sum(); t_5 = (df_audit == 5).sum().sum()
         perc = (t_5 / t_p * 100) if t_p > 0 else 0
-        
         st.header(f"Seguimiento Laboral - {mes_sidebar} {anio_global}")
         k1, k2, k3 = st.columns(3)
-        k1.metric("Empresas", len(df_f))
-        k2.metric("% Cumplimiento", f"{perc:.1f}%")
-        k3.metric("Al Día", int(df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum() if mes_sidebar == "AÑO COMPLETO" else (df_audit == 5).sum().sum()))
-
-        st.write("###")
-        st_c = df_num.stack().value_counts(); m_cols_res = st.columns(len(MAPA_ESTADOS))
-        for i, (code, name) in enumerate(MAPA_ESTADOS.items()):
-            m_cols_res[i].metric(name, int(st_c.get(code, 0)))
+        k1.metric("Empresas", len(df_f)); k2.metric("% Cumplimiento", f"{perc:.1f}%"); k3.metric("Al Día", int(df_audit.apply(lambda x: x.dropna().eq(5).all() if x.dropna().size > 0 else False, axis=1).sum() if mes_sidebar == "AÑO COMPLETO" else (df_audit == 5).sum().sum()))
 
         if mes_sidebar == "AÑO COMPLETO":
             st.divider(); st.write("### 📈 Evolución Mensual")
@@ -129,17 +120,12 @@ with tabs[0]:
                     if pd.notna(cod): res_evo.append({'Mes': m, 'Estado': MAPA_ESTADOS.get(int(cod), "S/I"), 'Cantidad': cant})
             if res_evo: st.plotly_chart(px.bar(pd.DataFrame(res_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
 
-        st.divider()
-        emp_sel = st.selectbox("Empresa para Detalle:", sorted(df_f[col_e].unique()))
-        df_es = df_f[df_f[col_e] == emp_sel]
+        st.divider(); emp_sel = st.selectbox("Empresa para Detalle:", sorted(df_f[col_e].unique())); df_es = df_f[df_f[col_e] == emp_sel]
         c_iz, c_de = st.columns([3, 1.2])
-
         with c_iz:
-            p_d = df_es[cols_m].stack().value_counts().reset_index(); p_d.columns = ['Cod', 'Cant']
-            p_d['Estado'] = p_d['Cod'].map(MAPA_ESTADOS)
+            p_d = df_es[cols_m].stack().value_counts().reset_index(); p_d.columns = ['Cod', 'Cant']; p_d['Estado'] = p_d['Cod'].map(MAPA_ESTADOS)
             st.plotly_chart(px.pie(p_d[p_d['Cod'] != 9], values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Estatus: {emp_sel}"), use_container_width=True)
-            st.write("#### 📜 Historial Mensual")
-            m1, m2 = cols_m[:6], cols_m[6:]
+            st.write("#### 📜 Historial Mensual"); m1, m2 = cols_m[:6], cols_m[6:]
             def draw_grid_c(l):
                 cs = st.columns(6)
                 for i, m in enumerate(l):
@@ -147,23 +133,18 @@ with tabs[0]:
                     t = MAPA_ESTADOS.get(v, "S/I"); b = COLORES_ESTADOS.get(t, "#555555"); tc = "#000000" if t in ["Observado", "Cumple", "En Revision"] else "#FFFFFF"
                     cs[i].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{b}; color:{tc}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'><b style='font-size:11px;'>{m}</b><br><span style='font-size:8px; font-weight:bold;'>{t.upper()}</span></div>", unsafe_allow_html=True)
             draw_grid_c(m1); st.write(""); draw_grid_c(m2)
-
         with c_de:
-            st.subheader("📄 Certificado")
-            m_pdf = st.selectbox("Mes PDF:", cols_m, key="s_pdf_dash")
+            st.subheader("📄 Certificado"); m_pdf = st.selectbox("Mes PDF:", cols_m, key="s_pdf_dash")
             if st.button("Obtener PDF", use_container_width=True):
                 match_id = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_sel[:10], case=False, na=False)]
                 if not match_id.empty:
-                    id_f = str(match_id.iloc[0]['IDCARPETA']).strip()
-                    n_f = f"Certificado.{MAPA_MESES_NUM[m_pdf]}{anio_global}.pdf"
+                    id_f = str(match_id.iloc[0]['IDCARPETA']).strip(); n_f = f"Certificado.{MAPA_MESES_NUM[m_pdf]}{anio_global}.pdf"
                     r = requests.get(URL_APPS_SCRIPT, params={"nombre": n_f, "carpeta": id_f})
                     if r.text.startswith("http"): st.session_state["link_descarga"] = r.text.strip()
                     else: st.error("No disponible.")
             if "link_descarga" in st.session_state: st.link_button("📥 Descargar", st.session_state["link_descarga"], use_container_width=True)
-            st.divider(); st.subheader("📝 Observaciones")
-            col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
+            st.divider(); col_o = next((c for c in df_av.columns if 'OBS' in str(c).upper()), None)
             if col_o and pd.notna(df_es.iloc[0][col_o]): st.warning(df_es.iloc[0][col_o])
-            else: st.info("Sin observaciones.")
 
 # --- TAB 2: DOTACIÓN ---
 with tabs[1]:
@@ -174,29 +155,28 @@ with tabs[1]:
         c_rs = next((c for c in df_m.columns if 'RAZON' in str(c).upper()), df_m.columns[0])
         st.dataframe(df_m[df_m[c_rs] == st.session_state["u_emp"]] if rol == "USUARIO" else df_m, use_container_width=True)
 
-# --- TAB 3: CARGA MENSUAL (CON PANEL CERCANO Y TEXTO +1) ---
+# --- TAB 3: CARGA MENSUAL (MÁXIMA CERCANÍA Y TEXTO 14PX) ---
 with tabs[2]:
     st.header("📤 Carga de Documentación Mensual")
-    if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un Mes en el sidebar para habilitar la carga.")
+    if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un Mes en el sidebar para cargar.")
     else:
-        # Cambio de ratio a [2.6, 1.4] para acercar el panel
-        col_m_inp, col_m_inst = st.columns([2.6, 1.4])
+        # Ratio [1.7, 1.3] para 'pegar' el panel a los botones
+        col_m_inp, col_m_inst = st.columns([1.7, 1.3])
         
         with col_m_inst:
-            # Texto aumentado a 13px/14px
-            st.markdown("""
-            <div style='background-color:#f8f9fa; padding:15px; border-radius:10px; border-left: 5px solid #FF8C00;'>
-            <h4 style='margin-top:0;'>📖 Instrucciones de Carga</h4>
-            <p style='font-size:13px; color:#333;'><b>REMUNERACIONES Y COTIZACIONES:</b></p>
-            <ul style='font-size:13px; padding-left:18px; line-height:1.5; color:#444;'>
-                <li><b>Liquidaciones:</b> PDF único con todos los colaboradores.</li>
-                <li><b>Pagos/Anticipos:</b> PDF único con comprobantes.</li>
-                <li><b>Cotizaciones:</b> Planillas de pago (Previred).</li>
-                <li><b>Libro Remuneraciones:</b> Archivo CSV (el enviado a la DT).</li>
+            st.markdown(f"""
+            <div style='background-color:#fefefe; padding:18px; border-radius:12px; border: 1px solid #ddd; border-left: 8px solid #FF8C00;'>
+            <h4 style='margin-top:0; color:#222; border-bottom:1px solid #eee; padding-bottom:8px;'>📖 Instrucciones de Carga</h4>
+            <p style='font-size:14px; color:#111; margin-bottom:10px;'><b>REMUNERACIONES Y COTIZACIONES:</b></p>
+            <ul style='font-size:14px; padding-left:18px; line-height:1.6; color:#222;'>
+                <li><b>Liquidaciones:</b> PDF único con todos los trabajadores.</li>
+                <li><b>Pagos/Anticipos:</b> PDF único con todos los comprobantes.</li>
+                <li><b>Cotizaciones:</b> Subir planillas de pago (Previred).</li>
+                <li><b>Libro Auxiliar:</b> Archivo CSV (el enviado a la DT).</li>
                 <li><b>Comprobante DT:</b> Certificado envío libro remuneraciones.</li>
                 <li><b>F30:</b> Certificado actualizado (máx. 30 días).</li>
-                <li><b>F30-1:</b> Personal asignado a CMSG.</li>
-                <li><b>Planilla Control:</b> Archivo .XLS del mes.</li>
+                <li><b>F30-1:</b> Solo personal que presta servicios a CMSG.</li>
+                <li><b>Planilla Control:</b> Archivo .XLS del mes en curso.</li>
             </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -215,7 +195,8 @@ with tabs[2]:
                 ("Planilla Control (.XLS)", "CONTROL", ["xlsx", "xls"])
             ]
             for n, p, e in m_docs:
-                cf, cb, cs = st.columns([4, 1.5, 4.5])
+                # Columnas internas [4, 2, 0.5] para que el botón esté pegado a la instrucción
+                cf, cb, cs = st.columns([4, 2, 0.5])
                 with cf: a = st.file_uploader(f"Subir {n}", type=e, key=f"m_{p}")
                 with cb:
                     st.write("##")
@@ -226,33 +207,29 @@ with tabs[2]:
                                 id_f = str(mt.iloc[0]['IDCARPETA']).strip(); ext = a.name.split('.')[-1]
                                 payload = {"tipo":"mensual","id_carpeta":id_f,"anio":anio_global,"nombre_final":f"{p}_{mes_sidebar}_{anio_global}_{emp_u[:10]}.{ext}","mes_nombre":MAPA_MESES_CARP[mes_sidebar],"mimetype":"application/pdf" if ext=="pdf" else "text/csv" if ext=="csv" else "application/vnd.ms-excel","archivo_base64":base64.b64encode(a.read()).decode('utf-8')}
                                 r = requests.post(URL_APPS_SCRIPT, data=payload)
-                                if r.status_code == 200: st.success("Cargado exitosamente.")
+                                if r.status_code == 200: st.success("Cargado correctamente.")
             st.divider()
             if "c_send" not in st.session_state: st.session_state.c_send = False
             if not st.session_state.c_send:
                 if st.button("🏁 FINALIZAR Y NOTIFICAR", use_container_width=True): st.session_state.c_send = True; st.rerun()
             else:
-                st.warning("⚠️ ¿Confirmar envío mensual?")
-                c1, c2 = st.columns(2)
+                st.warning("⚠️ ¿Confirmar envío mensual?"); c1, c2 = st.columns(2)
                 if c1.button("✅ SÍ, ENVIAR", use_container_width=True):
                     requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email","empresa":emp_u,"usuario":st.session_state["u_nom"],"periodo":f"{mes_sidebar} {anio_global}"})
                     st.session_state.c_send = False; st.success("Notificado.")
                 if c2.button("❌ NO", use_container_width=True): st.session_state.c_send = False; st.rerun()
 
-# --- TAB 4: INGRESO COLABORADOR (CON PANEL CERCANO Y TEXTO +1) ---
+# --- TAB 4: INGRESO COLABORADOR ---
 with tabs[3]:
     st.header("👤 Registro de Nuevo Colaborador")
     st.info("Complete los datos y arrastre la documentación base.")
-    # Cambio de ratio a [2.6, 1.4]
-    col_inp, col_rec = st.columns([2.6, 1.4])
-    
+    col_inp, col_rec = st.columns([1.7, 1.3])
     with col_rec:
-        # Texto aumentado a 13px/14px
         st.markdown("""
-        <div style='background-color:#f1f3f6; padding:15px; border-radius:10px; border-left: 5px solid #1E90FF;'>
-        <h4 style='margin-top:0;'>📌 Recordatorio</h4>
-        <small style='font-size:13px; color:#333;'>Documentos requeridos por trabajador:</small>
-        <ul style='font-size:13px; padding-left:18px; line-height:1.5; color:#444;'>
+        <div style='background-color:#fefefe; padding:18px; border-radius:12px; border: 1px solid #ddd; border-left: 8px solid #1E90FF;'>
+        <h4 style='margin-top:0; color:#222; border-bottom:1px solid #eee; padding-bottom:8px;'>📌 Recordatorio</h4>
+        <small style='font-size:14px; color:#111;'>Documentación básica por trabajador:</small>
+        <ul style='font-size:14px; padding-left:20px; line-height:1.6; color:#222;'>
             <li>Contrato de Trabajo / Anexo</li>
             <li>Cédula de Identidad</li>
             <li>Certificado AFP / Salud</li>
@@ -262,7 +239,6 @@ with tabs[3]:
         </ul>
         </div>
         """, unsafe_allow_html=True)
-
     with col_inp:
         emp_c = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa:", sorted(df_av[col_e].unique()), key="c_up_col")
         ci1, ci2 = st.columns(2)
@@ -283,7 +259,7 @@ with tabs[3]:
                     for f in f_bulk:
                         payload = {"tipo":"colaborador","id_carpeta":id_f,"nombre_persona":n_new.upper(),"rut":r_new,"nombre_final":f.name,"mimetype":"application/pdf","archivo_base64":base64.b64encode(f.read()).decode('utf-8')}
                         requests.post(URL_APPS_SCRIPT, data=payload)
-                    st.success(f"Carga de {len(f_bulk)} archivos completada.")
+                    st.success(f"Carga completada.")
 
     st.divider()
     if "c_new" not in st.session_state: st.session_state.c_new = False
@@ -291,8 +267,7 @@ with tabs[3]:
         if st.button("🏁 FINALIZAR INGRESO Y NOTIFICAR", use_container_width=True):
             if n_new and r_ok: st.session_state.c_new = True; st.rerun()
     else:
-        st.warning(f"⚠️ ¿Confirmar ingreso de {n_new}?")
-        k1, k2 = st.columns(2)
+        st.warning(f"⚠️ ¿Confirmar ingreso?"); k1, k2 = st.columns(2)
         if k1.button("✅ SÍ, NOTIFICAR", use_container_width=True):
             msg = f"{mes_sidebar} {anio_global}\nNuevo Colaborador: {n_new.upper()}"
             requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"], "periodo":msg})
@@ -302,8 +277,7 @@ with tabs[3]:
 # --- TAB: ADMIN ---
 if rol != "USUARIO":
     with tabs[4]:
-        st.header("⚙️ Panel Administrativo")
-        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
+        st.header("⚙️ Admin"); st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
 st.markdown("---")
 st.caption("Control Laboral CMSG | Desarrollado por C & S Asociados Ltda.")
