@@ -191,11 +191,14 @@ with tabs[tab_list.index("📤 Carga Mensual")]:
             <h4 style='margin-top:0;'>📖 Instrucciones de Carga</h4>
             <p style='font-size:14px; color:#d9534f;'><b>⚠️ MÁXIMO 20MB POR ARCHIVO.</b></p>
             <ul style='font-size:14px; padding-left:18px; line-height:1.6;'>
-                <li><b>Liquidaciones:</b> PDF único con todos los trabajadores.</li>
-                <li><b>Pagos/Anticipos:</b> PDF único con todos los comprobantes.</li>
-                <li><b>Cotizaciones:</b> Planillas de pago Previred).</li>
-                <li><b>Libro Auxiliar:</b> Archivo CSV (el enviado a la DT).</li>
-                <li><b>F30 / F30-1:</b> Certificados actualizados.</li>
+                <li><b>Liquidaciones de Sueldos PDF único con todos los trabajadores.</li>
+                <li><b>Pagos de Sueldos/Anticipos PDF único con todos los comprobantes.</li>
+                <li><b>Planillas de Cotizaciones.</li>
+                <li><b>Libro Remuneracion enviado a la DT.</li>
+                <li><b>Comprobante envio LRE a DT.</li>
+                <li><b>F30 Vigencia no mayor a 30 días.</li> 
+                <li><b>F30-1 Trabajadores Vigentes en CMSG.</li>
+                <li><b>Planilla de Control Mensual.</li>
             </ul>
             </div>""", unsafe_allow_html=True)
         with col_m_inp:
@@ -230,10 +233,10 @@ with tabs[tab_list.index("👥 DOTACION")]:
     col_d_inp, col_d_inst = st.columns([1.7, 1.3])
     with col_d_inst:
         color_b = "#1E90FF" if "Alta" in acc else "#d9534f"
-        txt_d = "<li>Contrato de Trabajo</li><li>Anexo de Contrato</li><li>Cédula Identidad</li><li>Cert. AFP/Salud</li>" if "Alta" in acc else "<li>Finiquito Firmado</li><li>Pago Finiquito</li><li>Anexo Traslado</li>"
+        txt_d = "<li>Contrato de Trabajo</li><li>Anexo de Contrato</li><li>Cédula Identidad</li><li>Certificado Afiliacion AFP/Salud</li><li>Comprobante Registro Contrato DT</li><li>Comprobante Entrega RIOHS</li>" if "Alta" in acc else "<li>Finiquito Firmado</li><li>Pago Finiquito</li><li>Anexo Traslado</li>"
         st.markdown(f"""
         <div class='instrucciones-caja' style='border-left: 8px solid {color_b};'>
-        <h4 style='margin-top:0;'>📌 Requisitos</h4>
+        <h4 style='margin-top:0;'>📖 Instrucciones de Carga</h4>
         <p style='font-size:14px; color:#d9534f;'><b>⚠️ MÁXIMO 20MB POR ARCHIVO.</b></p>
         <ul style='font-size:14px; padding-left:20px; line-height:1.6;'>{txt_d}</ul>
         </div>""", unsafe_allow_html=True)
