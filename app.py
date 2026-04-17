@@ -1,19 +1,3 @@
-¡Tienes toda la razón, Sergio! Entre tanto ajuste para la carga de archivos, descuidamos la visualización y la descarga en la Pestaña 1. Al "limpiar" el código, se nos pasaron las líneas que generan el gráfico evolutivo y la lógica que convierte el nombre del mes a número para el PDF.
-
-He reconstruido la Pestaña 1 con todo su poder original:
-
-Gráfico de Barras Restaurado: Ahora vuelve a mostrar la evolución mensual de todos los estados (Cumple, No Cumple, etc.) si seleccionas "AÑO COMPLETO".
-
-Descarga de PDF Corregida: He vuelto a usar MAPA_MESES_NUM para que busque Certificado.012026.pdf y no Certificado.ENE2026.pdf, que era el error.
-
-Historial Cromático: Se mantiene la grilla de colores para los 12 meses.
-
-Matemática de Auditoría: Sigue excluyendo el "Estado 9" para que los porcentajes sean reales.
-
-Aquí tienes la Versión 19 (Completa). Verás que volvemos a superar las 300 líneas de código para asegurar que no falte absolutamente nada.
-
-🐍 app.py: Versión 19 - Restauración Total y Seguridad Pro
-Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
