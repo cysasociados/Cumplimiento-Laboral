@@ -240,14 +240,16 @@ with tabs[tab_list.index("📤 Carga Mensual")]:
         with col_m_inst:
             st.markdown("""
             <div style='background-color:#fefefe; padding:18px; border-radius:12px; border: 1px solid #ddd; border-left: 8px solid #FF8C00;'>
-            <h4 style='margin-top:0;'>📖 Instrucciones</h4>
+            <h4 style='margin-top:0;'>📖 Documentos</h4>
             <p style='font-size:14px; color:#d9534f;'><b>⚠️ MÁXIMO 20MB POR ARCHIVO.</b></p>
             <ul style='font-size:14px; line-height:1.6;'>
                 <li>Liquidaciones (PDF único)</li>
                 <li>Comprobantes Pago/Anticipos</li>
-                <li>Cotizaciones (Previred)</li>
-                <li>Libro Remuneraciones (CSV)</li>
-                <li>Certificado F30 / F30-1</li>
+                <li>Planillas de Cotizaciones</li>
+                <li>Libro Remuneraciones enviado DT(CSV)</li>
+                <li>Certificado F30 (Maximo 30 días)/ F30-1</li>
+                <li>Certificado F30-1, Colaboradores Vigentes en CMSG</li>
+                <li>Planilla de Control Mensual</li>	
             </ul></div>""", unsafe_allow_html=True)
         with col_m_inp:
             emp_u = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("EECC:", sorted(df_av[col_e].unique()), key="up_m_sel")
@@ -334,7 +336,7 @@ with tabs[tab_list.index("👥 DOTACION")]:
                         requests.post(URL_APPS_SCRIPT, data={"tipo":"colaborador","id_carpeta":id_f,"nombre_persona":n_nom.upper(),"rut":r_rut,"nombre_final":f"{t_baja}_{r_rut}.pdf","mimetype":"application/pdf","archivo_base64":base64.b64encode(f_out.read()).decode('utf-8')})
                         st.success("Baja enviada.")
     st.divider()
-    if st.button("🏁 NOTIFICAR ACCIÓN", use_container_width=True):
+    if st.button("🏁 FINALIZAR Y NOTIFICAR", use_container_width=True):
         if n_nom and r_ok:
             requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"], "periodo":f"DOTACION: {acc} - {n_nom}"})
             st.success("Notificación enviada.")
