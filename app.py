@@ -197,7 +197,7 @@ with tabs[3]:
     col_d_inp, col_d_inst = st.columns([1.7, 1.3])
     with col_d_inst:
         color_b = "#1E90FF" if "Alta" in acc_dot else "#d9534f"
-        txt_d = "<li>Contrato / Anexo</li><li>Cédula Identidad</li><li>Cert. AFP/Salud</li>" if "Alta" in acc_dot else "<li>Finiquito Firmado</li><li>Anexo Traslado</li>"
+        txt_d = "<li>Contrato de Trabajo / Anexo de Contrato</li><li>Cédula Identidad</li><li>Cert. AFP/Salud</li>" if "Alta" in acc_dot else "<li>Finiquito Firmado</li><li>Anexo Traslado</li>"
         st.markdown(f"""
         <div style='background-color:#fefefe; padding:18px; border-radius:12px; border: 1px solid #ddd; border-left: 8px solid {color_b};'>
         <h4 style='margin-top:0;'>📌 Requisitos</h4>
