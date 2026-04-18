@@ -199,6 +199,12 @@ with tabs[tab_list.index("📤 Carga Mensual")]:
                 <li><b>F30 Vigencia no mayor a 30 días.</li> 
                 <li><b>F30-1 Trabajadores Vigentes en CMSG.</li>
                 <li><b>Planilla de Control Mensual.</li>
+
+
+
+
+
+                <li><b>Al Finalizar de Subir los documentos, favor presionar el boton notificar al final de la pagina.</li>
             </ul>
             </div>""", unsafe_allow_html=True)
         with col_m_inp:
@@ -275,7 +281,7 @@ with tabs[tab_list.index("👥 DOTACION")]:
     # SE AGREGA UN KEY ÚNICO PARA EVITAR EL ERROR DE DUPLICADO
     if st.button("🏁 FINALIZAR Y NOTIFICAR", key="btn_notif_dotacion_final", use_container_width=True):
         if n_nom and r_ok:
-            requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"], "periodo":f"DOTACION: {acc} - {n_nom}"})
+            requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"], "DOTACION: {acc} - {n_nom}"})
             st.success("Notificación enviada.")
 
 # --- TAB: ADMIN ---
