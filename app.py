@@ -46,7 +46,7 @@ MAPA_MESES_CARP = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','
 
 # --- FUNCIÓN: VALIDACIÓN DE RUT ---
 def validar_rut(rut):
-    rut = rut.replace(".", "").replace("-", "").upper()
+    rut = str(rut).replace(".", "").replace("-", "").upper()
     if not re.match(r"^\d{7,8}[0-9K]$", rut): return False
     cuerpo, dv = rut[:-1], rut[-1]
     suma = 0
@@ -68,7 +68,7 @@ def cargar_datos(sheet_id, p):
     except: return pd.DataFrame()
 
 # ==========================================
-# 2. LOGIN (CORRECCIÓN NameError col_clave)
+# 2. LOGIN (CORREGIDO)
 # ==========================================
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -80,12 +80,10 @@ if "authenticated" not in st.session_state:
         if st.button("Ingresar al Sistema", use_container_width=True):
             df_u = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_u.empty:
-                # SE DEFINE col_clave_final PARA EVITAR EL ERROR DE LA CAPTURA
                 col_clave_final = next((c for c in df_u.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
                 match = df_u[df_u[col_clave_final].astype(str).str.strip() == pwd]
                 if not match.empty:
                     u = match.iloc[0]; n_u = u.get('NOMBRE','')
-                    st.success(f"Bienvenido(a), {n_u}")
                     st.session_state.update({"authenticated": True, "u_nom": n_u, "u_rol": u.get('ROL',''), "u_emp": u.get('EMPRESA',''), "u_email": u.get('EMAIL','')})
                     st.rerun()
                 else: st.error("Contraseña incorrecta.")
@@ -111,7 +109,6 @@ with st.sidebar:
 # ==========================================
 rol = st.session_state["u_rol"]
 
-# Lógica de Sergio: EECC (Usuario) solo ve 1, 3 y 4.
 if rol == "USUARIO":
     tab_list = ["📉 Dashboard", "📤 Carga Mensual", "👥 DOTACION"]
 else:
@@ -119,12 +116,11 @@ else:
 
 tabs = st.tabs(tab_list)
 
-# --- TAB: DASHBOARD ---
-with tabs[tab_list.index("📉 Dashboard")]:
+# --- TAB 1: DASHBOARD ---
+with tabs[0]:
     df_id_empresas = cargar_datos(ID_EMPRESAS, "HOJA1")
     if not df_av.empty:
         col_e = next((c for c in df_av.columns if 'EMP' in str(c).upper()), 'EMPRESA')
-        # Filtro de datos para EECC
         df_f = df_av[df_av[col_e] == st.session_state["u_emp"]] if rol == "USUARIO" else df_av
         c_filt = [mes_sidebar] if mes_sidebar != "AÑO COMPLETO" else cols_m
         df_num = df_f[c_filt].apply(pd.to_numeric, errors='coerce')
@@ -172,14 +168,13 @@ with tabs[tab_list.index("📉 Dashboard")]:
 
 # --- TAB: KPIS EMPRESAS (SOLO ADMIN) ---
 if rol != "USUARIO":
-    with tabs[tab_list.index("📊 KPIS EMPRESAS")]:
+    with tabs[1]:
         st.header(f"📊 Reporte de Dotación por Empresa - {anio_global}")
         mes_kpi = st.selectbox("Mes Visualización:", MESES_LISTA, key="m_kpi_v")
         df_k = cargar_datos(ID_COLABORADORES, f"{mes_kpi.capitalize()}{anio_global[-2:]}")
-        if not df_k.empty:
-            st.dataframe(df_k, use_container_width=True)
+        if not df_k.empty: st.dataframe(df_k, use_container_width=True)
 
-# --- TAB: CARGA MENSUAL (ACCESIBLE PARA EECC) ---
+# --- TAB: CARGA MENSUAL ---
 with tabs[tab_list.index("📤 Carga Mensual")]:
     st.header("📤 Carga de Documentación Mensual")
     if mes_sidebar == "AÑO COMPLETO": st.warning("Seleccione un Mes en el sidebar.")
@@ -191,20 +186,12 @@ with tabs[tab_list.index("📤 Carga Mensual")]:
             <h4 style='margin-top:0;'>📖 Instrucciones de Carga</h4>
             <p style='font-size:14px; color:#d9534f;'><b>⚠️ MÁXIMO 20MB POR ARCHIVO.</b></p>
             <ul style='font-size:14px; padding-left:18px; line-height:1.6;'>
-                <li><b>Liquidaciones de Sueldos PDF único con todos los trabajadores.</li>
-                <li><b>Pagos de Sueldos/Anticipos PDF único con todos los comprobantes.</li>
+                <li><b>Liquidaciones de Sueldos.</li>
+                <li><b>Pagos de Sueldos/Anticipos.</li>
                 <li><b>Planillas de Cotizaciones.</li>
-                <li><b>Libro Remuneracion enviado a la DT.</li>
-                <li><b>Comprobante envio LRE a DT.</li>
-                <li><b>F30 Vigencia no mayor a 30 días.</li> 
-                <li><b>F30-1 Trabajadores Vigentes en CMSG.</li>
+                <li><b>Libro Remuneracion (DT).</li>
+                <li><b>Certificados F30 / F30-1.</li>
                 <li><b>Planilla de Control Mensual.</li>
-
-
-
-
-
-                <li><b>Al Finalizar de Subir los documentos, favor presionar el boton notificar al final de la pagina.</li>
             </ul>
             </div>""", unsafe_allow_html=True)
         with col_m_inp:
@@ -217,21 +204,20 @@ with tabs[tab_list.index("📤 Carga Mensual")]:
                     st.write("##")
                     if st.button("Subir", key=f"bm_{p}", use_container_width=True):
                         if a:
-                            if a.size > 20*1024*1024: st.error("⚠️ El archivo supera los 20MB.")
+                            if a.size > 20*1024*1024: st.error("⚠️ Supera los 20MB.")
                             else:
                                 mt = df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_u[:10], case=False, na=False)]
                                 if not mt.empty:
                                     id_f = str(mt.iloc[0]['IDCARPETA']).strip(); ext = a.name.split('.')[-1]
                                     payload = {"tipo":"mensual","id_carpeta":id_f,"anio":anio_global,"nombre_final":f"{p}_{mes_sidebar}_{anio_global}_{emp_u[:10]}.{ext}","mes_nombre":MAPA_MESES_CARP[mes_sidebar],"mimetype":"application/pdf" if ext=="pdf" else "text/csv" if ext=="csv" else "application/vnd.ms-excel","archivo_base64":base64.b64encode(a.read()).decode('utf-8')}
                                     r = requests.post(URL_APPS_SCRIPT, data=payload)
-                                    if r.status_code == 200: st.success("Cargado correctamente.")
+                                    if r.status_code == 200: st.success("Cargado.")
             st.divider()
-            # SE AGREGA UN KEY ÚNICO PARA EVITAR EL ERROR DE DUPLICADO
-            if st.button("🏁 FINALIZAR Y NOTIFICAR", key="btn_notif_mensual_final", use_container_width=True):
+            if st.button("🏁 FINALIZAR Y NOTIFICAR", key="btn_notif_mensual_final_v35", use_container_width=True):
                 requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email","empresa":emp_u,"usuario":st.session_state["u_nom"],"periodo":f"{mes_sidebar} {anio_global}"})
                 st.success("Notificación enviada.")
 
-# --- TAB: DOTACION (ACCESIBLE PARA EECC) ---
+# --- TAB 4: DOTACION ---
 with tabs[tab_list.index("👥 DOTACION")]:
     st.header("👥 Gestión de Dotación (Altas y Bajas)")
     acc = st.radio("Acción:", ["🟢 Alta (Ingreso)", "🔴 Baja (Egreso)"], horizontal=True)
@@ -239,54 +225,62 @@ with tabs[tab_list.index("👥 DOTACION")]:
     col_d_inp, col_d_inst = st.columns([1.7, 1.3])
     with col_d_inst:
         color_b = "#1E90FF" if "Alta" in acc else "#d9534f"
-        txt_d = "<li>Contrato de Trabajo</li><li>Anexo de Contrato</li><li>Cédula Identidad</li><li>Certificado Afiliacion AFP/Salud</li><li>Comprobante Registro Contrato DT</li><li>Comprobante Entrega RIOHS</li>" if "Alta" in acc else "<li>Finiquito Firmado</li><li>Pago Finiquito</li><li>Anexo Traslado</li>"
-        st.markdown(f"""
-        <div class='instrucciones-caja' style='border-left: 8px solid {color_b};'>
-        <h4 style='margin-top:0;'>📖 Instrucciones de Carga</h4>
-        <p style='font-size:14px; color:#d9534f;'><b>⚠️ MÁXIMO 20MB POR ARCHIVO.</b></p>
-        <ul style='font-size:14px; padding-left:20px; line-height:1.6;'>{txt_d}</ul>
-        </div>""", unsafe_allow_html=True)
+        txt_d = "<li>Contrato de Trabajo</li><li>Cédula Identidad</li><li>AFP/Salud</li><li>ROHIS / DT</li>" if "Alta" in acc else "<li>Finiquito Firmado</li><li>Pago Finiquito</li><li>Anexo Traslado</li>"
+        st.markdown(f"""<div class='instrucciones-caja' style='border-left: 8px solid {color_b};'><h4 style='margin-top:0;'>📌 Requisitos</h4><p style='font-size:14px; color:#d9534f;'><b>⚠️ MÁXIMO 20MB POR ARCHIVO.</b></p><ul style='font-size:14px; line-height:1.6;'>{txt_d}</ul></div>""", unsafe_allow_html=True)
     with col_d_inp:
         emp_c = st.session_state['u_emp'] if rol == "USUARIO" else st.selectbox("Empresa:", sorted(df_av[col_e].unique()), key="c_up_dot")
         ci1, ci2 = st.columns(2)
         with ci1: n_nom = st.text_input("Nombre Trabajador:", placeholder="JUAN PEREZ")
         with ci2: 
-            r_rut = st.text_input("RUT (ej: 12345678-9):", placeholder="12.345.678-9")
-            r_ok = False
+            r_rut = st.text_input("RUT:", placeholder="12.345.678-9")
+            r_ok = validar_rut(r_rut) if r_rut else False
             if r_rut:
-                if validar_rut(r_rut): st.caption("✅ RUT Válido"); r_ok = True
+                if r_ok: st.caption("✅ RUT Válido")
                 else: st.caption("❌ RUT Inválido")
         st.divider()
         if "Alta" in acc:
-            f_in = st.file_uploader("Documentos de Ingreso (Máximo 20MB):", type=["pdf"], accept_multiple_files=True, key="bulk_in")
+            f_in = st.file_uploader("Subir Archivos (Máx 20MB):", type=["pdf"], accept_multiple_files=True, key="bulk_in")
             if f_in and n_nom and r_ok:
                 if st.button("Subir Alta", use_container_width=True):
-                    if any(f.size > 20*1024*1024 for f in f_in): st.error("⚠️ Archivo(s) exceden los 20MB.")
+                    if any(f.size > 20*1024*1024 for f in f_in): st.error("⚠️ Supera los 20MB.")
                     else:
                         id_f = str(df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_c[:10], case=False, na=False)].iloc[0]['IDCARPETA']).strip()
                         for f in f_in:
                             requests.post(URL_APPS_SCRIPT, data={"tipo":"colaborador","id_carpeta":id_f,"nombre_persona":n_nom.upper(),"rut":r_rut,"nombre_final":f.name,"mimetype":"application/pdf","archivo_base64":base64.b64encode(f.read()).decode('utf-8')})
                         st.success("Ingreso enviado.")
         else:
-            t_baja = st.selectbox("Tipo:", ["FINIQUITO", "ANEXO_TRASLADO"])
+            t_baja = st.selectbox("Tipo:", ["FINIQUITO", "COMP_PAGO_FINIQUITO", "ANEXO_TRASLADO"])
             f_out = st.file_uploader(f"Subir {t_baja} (Máximo 20MB):", type=["pdf"], key="f_baja")
             if f_out and n_nom and r_ok:
                 if st.button("Subir Baja", use_container_width=True):
-                    if f_out.size > 20*1024*1024: st.error("⚠️ El archivo supera los 20MB.")
+                    if f_out.size > 20*1024*1024: st.error("⚠️ Supera los 20MB.")
                     else:
                         id_f = str(df_id_empresas[df_id_empresas['EMPRESA'].str.contains(emp_c[:10], case=False, na=False)].iloc[0]['IDCARPETA']).strip()
                         requests.post(URL_APPS_SCRIPT, data={"tipo":"colaborador","id_carpeta":id_f,"nombre_persona":n_nom.upper(),"rut":r_rut,"nombre_final":f"{t_baja}_{r_rut}.pdf","mimetype":"application/pdf","archivo_base64":base64.b64encode(f_out.read()).decode('utf-8')})
                         st.success("Egreso enviado.")
     st.divider()
-    # SE AGREGA UN KEY ÚNICO PARA EVITAR EL ERROR DE DUPLICADO
-    if st.button("🏁 FINALIZAR Y NOTIFICAR", key="btn_notif_dotacion_final", use_container_width=True):
+    # ==============================================================================
+    # 5. ENVÍO DE EMAIL ACTUALIZADO (Pestaña Dotación)
+    # ==============================================================================
+    if st.button("🏁 FINALIZAR Y NOTIFICAR", key="btn_notif_dotacion_v35", use_container_width=True):
         if n_nom and r_ok:
-            requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"], "DOTACION:{acc} - {n_nom}"})
-            st.success("Notificación enviada.")
+            payload = {
+                "accion": "enviar_email", 
+                "empresa": emp_c, 
+                "usuario": st.session_state["u_nom"], 
+                "periodo": f"Dotacion: {n_nom.upper()}" # ESTO ES LO QUE LLEGA AL CORREO
+            }
+            try:
+                requests.post(URL_APPS_SCRIPT, data=payload)
+                st.success(f"✅ Notificado: Dotacion {n_nom.upper()}")
+            except:
+                st.error("Error al notificar.")
+        else:
+            st.warning("Verifique Nombre y RUT.")
 
 # --- TAB: ADMIN ---
 if rol != "USUARIO":
-    with tabs[tab_list.index("⚙️ Admin")]:
+    with tabs[4]:
         st.header("⚙️ Admin"); st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
 st.markdown("---")
