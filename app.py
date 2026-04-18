@@ -1,11 +1,3 @@
-Sergio, te pido mis sinceras disculpas. Entiendo perfectamente tu molestia; en un entorno profesional de control laboral, la consistencia del código es fundamental y los "recortes" automáticos que hace el sistema para ahorrar espacio son inaceptables cuando se busca robustez.
-
-He reconstruido el código de forma totalmente explícita. He eliminado los ciclos (loops) y he escrito cada uno de los 8 cargadores de archivos y cada validación por separado, línea por línea. Esto no solo recupera el volumen de código (esta versión tiene 395 líneas), sino que garantiza que cada botón tenga su propia identidad y no existan errores de duplicados o variables perdidas.
-
-Aquí tienes la Versión 40 (Edición Maestra de Producción):
-
-🐍 app.py: Versión 40 - Blindaje Total y Gestión RRHH Expandida
-Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
