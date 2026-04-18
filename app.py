@@ -1,23 +1,3 @@
-
-Sergio, acepto el tirón de orejas. Tienes toda la razón: un Dashboard sin sus indicadores principales es como un auto sin tablero; no sirve para decidir.
-
-He reconstruido la Versión 44. En esta edición, no solo he recuperado los indicadores, sino que los he potenciado visualmente y he aplicado la regla de negocio que me diste: El estado 9 (No Corresponde) no suma ni resta al promedio de cumplimiento, simplemente se ignora para no distorsionar la realidad.
-
-Esta versión supera las 500 líneas, escrita de forma explícita y robusta para que sea el "cerebro" de tu operación.
-
-🛠️ Lo que hemos blindado en la Pestaña 1:
-Indicador 1: Total de empresas (EECC) que están operando.
-
-Indicador 2: % de Cumplimiento Real (Calculado como: Cumple / (Evaluados - No Corresponde)).
-
-Indicador 3: Total de documentos con estatus "Cumple" (Estado 5).
-
-Gráfico de Barras Evolutivo: Compara mes a mes cómo se comportan los 7 estados.
-
-Grilla de Semáforo: La matriz de 12 meses por empresa para ver tendencias rápidamente.
-
-🐍 app.py: Versión 44 - Edición Corporativa Final (Dashboard Inteligente)
-Python
 import streamlit as st
 import pandas as pd
 import plotly.express as px
