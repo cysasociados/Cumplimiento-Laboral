@@ -281,7 +281,7 @@ with tabs[tab_list.index("👥 DOTACION")]:
     # SE AGREGA UN KEY ÚNICO PARA EVITAR EL ERROR DE DUPLICADO
     if st.button("🏁 FINALIZAR Y NOTIFICAR", key="btn_notif_dotacion_final", use_container_width=True):
         if n_nom and r_ok:
-            requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"],"DOTACION: {acc} - {n_nom}"})
+            requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email", "empresa":emp_c, "usuario":st.session_state["u_nom"], "DOTACION:{acc} - {n_nom}"})
             st.success("Notificación enviada.")
 
 # --- TAB: ADMIN ---
