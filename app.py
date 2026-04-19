@@ -9,7 +9,7 @@ from datetime import datetime
 import pytz
 
 # ==============================================================================
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS CORPORATIVOS (CSS)
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS (CSS PROFESIONAL)
 # ==============================================================================
 st.set_page_config(
     page_title="Control de Cumplimiento Laboral CMSG", 
@@ -18,7 +18,6 @@ st.set_page_config(
 )
 chile_tz = pytz.timezone('America/Santiago')
 
-# Inyección de CSS: Ocultar 200MB nativo y profesionalizar la interfaz
 st.markdown("""
     <style>
     /* Ocultar etiquetas de peso predeterminadas de Streamlit */
@@ -26,7 +25,7 @@ st.markdown("""
     .stFileUploader section div div { display: none !important; }
     .stFileUploader section div { padding-top: 5px !important; }
     
-    /* Contenedores de información y tarjetas */
+    /* Contenedores de información */
     .caja-instrucciones {
         background-color: #f8f9fa; 
         padding: 25px; 
@@ -36,7 +35,7 @@ st.markdown("""
         box-shadow: 0px 4px 6px rgba(0,0,0,0.05);
     }
     
-    /* Estética de Botones Maestros */
+    /* Botones de acción maestros */
     .stButton > button { 
         width: 100%; 
         border-radius: 12px; 
@@ -46,14 +45,14 @@ st.markdown("""
         transition: 0.3s ease all;
     }
     
-    /* Indicadores KPI en Dashboard */
+    /* Métricas del Dashboard */
     [data-testid="stMetricValue"] { 
         font-size: 38px; 
         color: #1E90FF; 
         font-weight: 900; 
     }
 
-    /* Tarjetas de conteo por estado */
+    /* Tarjetas de estado cuantitativas */
     .metric-card {
         text-align: center;
         padding: 12px;
@@ -66,26 +65,21 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# CONFIGURACIÓN DE CONEXIONES (GOOGLE DRIVE / SHEETS)
+# IDs DE BASES DE DATOS (GOOGLE SHEETS)
 URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwt9t5vQBsijY4eI9yF-sI82ctU5HGuW8xE2WVPwUBjOvaqGSGh7bi1DZaazU7NQEavfA/exec"
-
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
-# CONFIGURACIÓN DE RECURSOS HUMANOS
-CAUSALES_LEGALES_CHILE = [
-    "Art. 159 N°1: Mutuo acuerdo de las partes",
-    "Art. 159 N°2: Renuncia voluntaria del trabajador",
-    "Art. 159 N°4: Vencimiento del plazo convenido",
-    "Art. 159 N°5: Conclusión del trabajo o servicio",
-    "Art. 160: Conductas indebidas de carácter grave",
-    "Art. 161: Necesidades de la empresa",
-    "Traslado de Faena / Anexo de Contrato"
+# CONFIGURACIÓN DE RRHH Y ESTADOS
+CAUSALES_LEGALES = [
+    "Art. 159 N°1: Mutuo acuerdo", "Art. 159 N°2: Renuncia voluntaria",
+    "Art. 159 N°4: Vencimiento de plazo", "Art. 159 N°5: Conclusión de servicio",
+    "Art. 160: Conductas indebidas", "Art. 161: Necesidades de la empresa",
+    "Traslado de Faena / Anexo Contrato"
 ]
 
-# MAPEOS DE ESTADO (7 ESTADOS OFICIALES)
 MAPA_ESTADOS = {
     1: "Carga Doc.", 2: "En Revision", 3: "Observado", 
     4: "No Cumple", 5: "Cumple", 8: "Sin Info", 9: "No Corresp."
@@ -102,10 +96,9 @@ MAPA_MESES_NUM = {'ENE':'01','FEB':'02','MAR':'03','ABR':'04','MAY':'05','JUN':'
 MAPA_MESES_CARP = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','MAY':'05_MAY','JUN':'06_JUN','JUL':'07_JUL','AGO':'08_AGO','SEP':'09_SEP','OCT':'10_OCT','NOV':'11_NOV','DIC':'12_DIC'}
 
 # ==============================================================================
-# 2. FUNCIONES DE APOYO (LÓGICA EXPLÍCITA)
+# 2. FUNCIONES DE SOPORTE (CARGA Y VALIDACIÓN)
 # ==============================================================================
 def validar_rut(rut):
-    """Algoritmo Módulo 11 para validación de RUT chileno."""
     rut = str(rut).replace(".", "").replace("-", "").upper()
     if not re.match(r"^\d{7,8}[0-9K]$", rut): return False
     cuerpo, dv = rut[:-1], rut[-1]
@@ -119,313 +112,343 @@ def validar_rut(rut):
 
 @st.cache_data(ttl=10)
 def cargar_datos(sheet_id, hoja):
-    """Cargador de datos CSV robusto y explícito."""
     try:
-        url_csv = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={hoja}"
-        df = pd.read_csv(url_csv, encoding='utf-8-sig')
+        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={hoja}"
+        df = pd.read_csv(url, encoding='utf-8-sig')
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
-    except: return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 # ==============================================================================
-# 3. SISTEMA DE SEGURIDAD (LOGIN)
+# 3. SISTEMA DE ACCESO (LOGIN)
 # ==============================================================================
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
-    c_log1, c_log2, c_log3 = st.columns([1, 2, 1])
-    with c_log2:
+    c_l1, c_l2, c_l3 = st.columns([1, 2, 1])
+    with c_l2:
         if os.path.exists("CMSG.png"): st.image("CMSG.png", width=220)
-        st.title("Acceso Control Laboral")
-        p_login = st.text_input("Contraseña Corporativa:", type="password").strip()
-        if st.button("INGRESAR AL PORTAL", use_container_width=True):
+        st.title("Portal Cumplimiento CMSG")
+        pwd_inp = st.text_input("Contraseña Corporativa:", type="password").strip()
+        if st.button("INGRESAR AL SISTEMA", use_container_width=True):
             df_usuarios = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_usuarios.empty:
-                col_clave_check = next((c for c in df_usuarios.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
-                match = df_usuarios[df_usuarios[col_clave_check].astype(str).str.strip() == p_login]
+                col_clave = next((c for c in df_usuarios.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
+                match = df_usuarios[df_usuarios[col_clave].astype(str).str.strip() == pwd_inp]
                 if not match.empty:
-                    u_inf = match.iloc[0]
+                    u_data = match.iloc[0]
                     st.session_state.update({
-                        "authenticated": True, "u_nom": u_inf.get('NOMBRE',''), 
-                        "u_rol": u_inf.get('ROL',''), "u_emp": u_inf.get('EMPRESA',''), 
-                        "u_email": u_inf.get('EMAIL','')
+                        "authenticated": True, "u_nom": u_data.get('NOMBRE',''), 
+                        "u_rol": u_data.get('ROL',''), "u_emp": u_data.get('EMPRESA',''), 
+                        "u_email": u_data.get('EMAIL','')
                     })
                     st.rerun()
-                else: st.error("Contraseña incorrecta.")
+                else: st.error("Acceso denegado: Credenciales inválidas.")
     st.stop()
 
 # ==============================================================================
-# 4. SIDEBAR Y PERMISOS DE PESTAÑAS (FILTRO EECC)
+# 4. CONFIGURACIÓN DEL SIDEBAR
 # ==============================================================================
 with st.sidebar:
     if os.path.exists("CMSG.png"): st.image("CMSG.png", use_container_width=True)
-    st.markdown(f"👤 **{st.session_state['u_nom']}**")
-    st.markdown(f"🏢 **{st.session_state['u_emp']}**")
+    st.markdown(f"👤 **Usuario:** {st.session_state['u_nom']}")
+    st.markdown(f"🏢 **Empresa:** {st.session_state['u_emp']}")
     st.markdown("---")
-    anio_gestion = st.selectbox("Año de Gestión", ["2026", "2025"])
-    df_av_maestro = cargar_datos(ID_AVANCE, anio_gestion)
-    cols_m_ready = [c for c in df_av_maestro.columns if c in MESES_LISTA] if not df_av_maestro.empty else []
-    mes_sidebar_sel = st.selectbox("Periodo de Análisis", ["AÑO COMPLETO"] + cols_m_ready)
+    anio_sel = st.selectbox("Año de Gestión", ["2026", "2025"])
+    df_av_global = cargar_datos(ID_AVANCE, anio_sel)
+    cols_meses = [c for c in df_av_global.columns if c in MESES_LISTA] if not df_av_global.empty else []
+    mes_filt = st.selectbox("Periodo de Análisis", ["AÑO COMPLETO"] + cols_meses)
+    
     if st.button("🚪 CERRAR SESIÓN"):
-        for k_s in list(st.session_state.keys()): del st.session_state[k_s]
+        for k in list(st.session_state.keys()): del st.session_state[k]
         st.rerun()
 
-rol_sergio = st.session_state["u_rol"]
-if rol_sergio == "USUARIO":
-    t_list_final = ["📉 Dashboard", "📤 Carga Mensual", "👥 DOTACION"]
+rol_u = st.session_state["u_rol"]
+# Definición de pestañas (Cambio de nombre a pedido de Sergio)
+if rol_u == "USUARIO":
+    nombres_tabs = ["📉 Dashboard", "📤 Carga Mensual", "👥 Colaboradores EECC"]
 else:
-    t_list_final = ["📉 Dashboard", "📊 KPIS EMPRESAS", "📤 Carga Mensual", "👥 DOTACION", "⚙️ Admin"]
+    nombres_tabs = ["📉 Dashboard", "📊 KPIS EMPRESAS", "📤 Carga Mensual", "👥 Colaboradores EECC", "⚙️ Admin"]
 
-tabs = st.tabs(t_list_final)
+tabs = st.tabs(nombres_tabs)
 
 # ==============================================================================
-# 5. TAB 1: DASHBOARD (INDICADORES + CONTEO + GRÁFICOS)
+# 5. TAB 1: DASHBOARD (MÉTRICAS Y FILTRO ESTADO 9)
 # ==============================================================================
-with tabs[t_list_final.index("📉 Dashboard")]:
-    df_id_empresas_db = cargar_datos(ID_EMPRESAS, "HOJA1")
-    if not df_av_maestro.empty:
-        col_emp_check = next((c for c in df_av_maestro.columns if 'EMP' in str(c).upper()), 'EMPRESA')
-        df_f_dash = df_av_maestro[df_av_maestro[col_emp_check] == st.session_state["u_emp"]] if rol_sergio == "USUARIO" else df_av_maestro
-        c_cols_filt = [mes_sidebar_sel] if mes_sidebar_sel != "AÑO COMPLETO" else cols_m_ready
+with tabs[nombres_tabs.index("📉 Dashboard")]:
+    df_empresas_ids = cargar_datos(ID_EMPRESAS, "HOJA1")
+    if not df_av_global.empty:
+        col_emp_nombre = next((c for c in df_av_global.columns if 'EMP' in str(c).upper()), 'EMPRESA')
+        df_dash = df_av_global[df_av_global[col_emp_nombre] == st.session_state["u_emp"]] if rol_u == "USUARIO" else df_av_global
+        cols_periodo = [mes_filt] if mes_filt != "AÑO COMPLETO" else cols_meses
         
-        # --- LÓGICA DE CUMPLIMIENTO (ESTADO 9 EXCLUIDO) ---
-        df_num_dash = df_f_dash[c_cols_filt].apply(pd.to_numeric, errors='coerce')
+        # --- LÓGICA DE CUMPLIMIENTO REAL (EXCLUYENDO EL 9) ---
+        df_num_dash = df_dash[cols_periodo].apply(pd.to_numeric, errors='coerce')
         df_audit_dash = df_num_dash.copy()
-        df_audit_dash[df_audit_dash == 9] = pd.NA # Excluir No Corresponde de la media
+        df_audit_dash[df_audit_dash == 9] = pd.NA # El 9 no suma ni resta al promedio
         
-        total_evaluados = df_audit_dash.count().sum()
-        total_cumple = (df_audit_dash == 5).sum().sum()
-        perc_final = (total_cumple / total_evaluados * 100) if total_evaluados > 0 else 0
+        total_eval = df_audit_dash.count().sum()
+        total_5 = (df_audit_dash == 5).sum().sum()
+        perc_real = (total_5 / total_eval * 100) if total_eval > 0 else 0
         
-        # --- CONTEO CUANTITATIVO POR ESTADO ---
-        conteo_data = df_num_dash.stack().value_counts()
+        # --- NUEVO KPI: EECC CON 100% CUMPLIMIENTO (SOLO ESTADOS 5) ---
+        def chequear_100_cumple(row):
+            # Filtramos solo los valores que son evaluables (del 1 al 8, excluyendo el 9)
+            obligaciones = row[row.isin([1, 2, 3, 4, 5, 8])]
+            if obligaciones.empty: return False
+            return (obligaciones == 5).all()
         
-        st.header(f"Gestión de Cumplimiento - {mes_sidebar_sel} {anio_gestion}")
+        conteo_excelencia = df_num_dash.apply(chequear_100_cumple, axis=1).sum()
+
+        st.header(f"Resumen de Cumplimiento - {mes_filt} {anio_sel}")
         
-        # FILA 1: KPIs MAESTROS
-        km1, km2, km3 = st.columns(3)
-        km1.metric("EECC en el Sistema", len(df_f_dash))
-        km2.metric("% Cumplimiento Real", f"{perc_final:.1f}%")
-        km3.metric("Documentos Aprobados", int(total_cumple))
+        # FILA 1 DE KPIs
+        m1, m2, m3 = st.columns(3)
+        m1.metric("EECC en el Sistema", len(df_dash))
+        m2.metric("% Cumplimiento Real", f"{perc_real:.1f}%")
+        m3.metric("EECC con 100% Cumple", int(conteo_excelencia))
 
         st.divider()
-        st.subheader("📊 Cantidad de Documentos por Estado")
+        st.subheader("📊 Documentos por Estado (Evaluables)")
         
-        # FILA 2: CONTADORES POR ESTADO (LOS 7 ESTADOS)
-        c_est = st.columns(7)
-        for idx, (cod, nom) in enumerate(MAPA_ESTADOS.items()):
-            cant_est = int(conteo_data.get(cod, 0))
-            color_est = COLORES_ESTADOS.get(nom, "#555555")
-            c_est[idx].markdown(f"""
+        # --- TARJETAS CUANTITATIVAS (SIN EL ESTADO 9) ---
+        conteo_estados = df_num_dash.stack().value_counts()
+        c_cards = st.columns(6) # 6 columnas para los 6 estados de gestión
+        lista_estados_ver = [1, 2, 3, 4, 5, 8]
+        
+        for i, cod_est in enumerate(lista_estados_ver):
+            nom_est = MAPA_ESTADOS.get(cod_est)
+            cant_est = int(conteo_estados.get(cod_est, 0))
+            color_est = COLORES_ESTADOS.get(nom_est, "#555555")
+            c_cards[i].markdown(f"""
                 <div class='metric-card' style='background-color:{color_est};'>
-                    <div style='font-size:11px;'>{nom.upper()}</div>
+                    <div style='font-size:11px;'>{nom_est.upper()}</div>
                     <div style='font-size:24px;'>{cant_est}</div>
                 </div>
             """, unsafe_allow_html=True)
 
-        # --- GRÁFICO DE BARRAS EVOLUTIVO (EXCLUYE 9) ---
-        if mes_sidebar_sel == "AÑO COMPLETO":
-            st.divider(); st.write("### 📈 Evolución Mensual de Cumplimiento (Sin N/C)")
-            r_evo_dash = []
-            for m_loop in cols_m_ready:
-                counts_loop = df_f_dash[m_loop].value_counts()
-                for cod_loop, cant_loop in counts_loop.items():
-                    if pd.notna(cod_loop) and int(cod_loop) != 9:
-                        r_evo_dash.append({'Mes': m_loop, 'Estado': MAPA_ESTADOS.get(int(cod_loop), "S/I"), 'Cantidad': cant_loop})
-            if r_evo_dash:
-                st.plotly_chart(px.bar(pd.DataFrame(r_evo_dash), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
+        if mes_filt == "AÑO COMPLETO":
+            st.write("### 📈 Evolución Mensual de Estados (Excluyendo N/C)")
+            data_evo = []
+            for m_evo in cols_meses:
+                cnts = df_dash[m_evo].value_counts()
+                for cod_e, cant_e in cnts.items():
+                    if pd.notna(cod_e) and int(cod_e) != 9:
+                        data_evo.append({
+                            'Mes': m_evo, 
+                            'Estado': MAPA_ESTADOS.get(int(cod_e), "S/I"), 
+                            'Cantidad': cant_e
+                        })
+            if data_evo:
+                st.plotly_chart(px.bar(pd.DataFrame(data_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
 
         st.divider()
-        emp_sel_dash = st.selectbox("Analizar Detalle de Empresa:", sorted(df_f_dash[col_emp_check].unique()))
-        df_es_dash = df_f_dash[df_f_dash[col_emp_check] == emp_sel_dash]
-        col_izq, col_der = st.columns([3, 1.2])
+        emp_analisis = st.selectbox("Detalle Individual de Empresa:", sorted(df_dash[col_emp_nombre].unique()))
+        df_emp_especifica = df_dash[df_dash[col_emp_nombre] == emp_analisis]
         
-        with col_izq:
-            # Gráfico de Pie (Excluye el 9)
-            p_pie_data = df_es_dash[cols_m_ready].stack().value_counts().reset_index(); p_pie_data.columns = ['Cod', 'Cant']
-            p_pie_data = p_pie_data[p_pie_data['Cod'] != 9]
-            p_pie_data['Estado'] = p_pie_data['Cod'].map(MAPA_ESTADOS)
-            st.plotly_chart(px.pie(p_pie_data, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Estatus: {emp_sel_dash}"), use_container_width=True)
+        col_graf, col_cert = st.columns([3, 1.2])
+        
+        with col_graf:
+            # Gráfico Circular (Sin 9)
+            p_data = df_emp_especifica[cols_meses].stack().value_counts().reset_index()
+            p_data.columns = ['Cod', 'Cant']
+            p_data = p_data[p_data['Cod'] != 9]
+            p_data['Estado'] = p_data['Cod'].map(MAPA_ESTADOS)
+            st.plotly_chart(px.pie(p_data, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución Estatus: {emp_analisis}"), use_container_width=True)
             
-            # GRILLA DE SEMÁFORO (12 MESES)
-            st.write("#### 📜 Semáforo Histórico 12 Meses")
-            gm1, gm2 = cols_m_ready[:6], cols_m_ready[6:]
-            def render_semaforo(lista_meses):
-                cs_sem = st.columns(6)
-                for ix_s, m_s in enumerate(lista_meses):
-                    val_s = int(df_es_dash[m_s].values[0]) if pd.notna(df_es_dash[m_s].values[0]) else 8
-                    txt_s = MAPA_ESTADOS.get(val_s, "S/I"); bg_s = COLORES_ESTADOS.get(txt_s, "#555555"); tc_s = "#000000" if txt_s in ["Observado", "Cumple", "En Revision"] else "#FFFFFF"
-                    cs_sem[ix_s].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{bg_s}; color:{tc_s}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'><b style='font-size:11px;'>{m_s}</b><br><span style='font-size:8px; font-weight:bold;'>{txt_s.upper()}</span></div>", unsafe_allow_html=True)
-            render_semaforo(gm1); st.write(""); render_semaforo(gm2)
+            # Semáforo de 12 Meses
+            st.write("#### 📜 Semáforo Histórico (Estatus Mensual)")
+            m_grupo1, m_grupo2 = cols_meses[:6], cols_meses[6:]
+            def dibujar_semaforo(lista_m):
+                cols_sem = st.columns(6)
+                for idx, mes_s in enumerate(lista_m):
+                    val_s = int(df_emp_especifica[mes_s].values[0]) if pd.notna(df_emp_especifica[mes_s].values[0]) else 8
+                    txt_s = MAPA_ESTADOS.get(val_s, "S/I")
+                    bg_s = COLORES_ESTADOS.get(txt_s, "#555555")
+                    tc_s = "#000000" if txt_s in ["Observado", "Cumple", "En Revision"] else "#FFFFFF"
+                    cols_sem[idx].markdown(f"""
+                        <div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{bg_s}; color:{tc_s}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'>
+                            <b style='font-size:11px;'>{mes_s}</b><br><span style='font-size:8px; font-weight:bold;'>{txt_s.upper()}</span>
+                        </div>
+                    """, unsafe_allow_html=True)
+            dibujar_semaforo(m_grupo1); st.write(""); dibujar_semaforo(m_grupo2)
 
-        with col_der:
+        with col_cert:
             st.subheader("📄 Certificado")
-            mes_pdf_sel = st.selectbox("Mes Certificado:", cols_m_ready, key="s_pdf_dash_v47")
+            mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v50")
             if st.button("Consultar PDF en Drive", use_container_width=True):
-                mt_cert = df_id_empresas_db[df_id_empresas_db['EMPRESA'].str.contains(emp_sel_dash[:10], case=False, na=False)]
-                if not mt_cert.empty:
-                    id_fc = str(mt_cert.iloc[0]['IDCARPETA']).strip()
-                    n_fc = f"Certificado.{MAPA_MESES_NUM[mes_pdf_sel]}{anio_gestion}.pdf"
-                    r_fc = requests.get(URL_APPS_SCRIPT, params={"nombre": n_fc, "carpeta": id_fc})
-                    if r_fc.text.startswith("http"): st.session_state["link_v47"] = r_fc.text.strip()
-            if "link_v47" in st.session_state: st.link_button("📥 DESCARGAR PDF", st.session_state["link_v47"], use_container_width=True)
+                match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
+                if not match_c.empty:
+                    id_carp = str(match_c.iloc[0]['IDCARPETA']).strip()
+                    nom_archivo = f"Certificado.{MAPA_MESES_NUM[mes_c]}{anio_sel}.pdf"
+                    res_c = requests.get(URL_APPS_SCRIPT, params={"nombre": nom_archivo, "carpeta": id_carp})
+                    if res_c.text.startswith("http"):
+                        st.session_state["link_pdf_v50"] = res_c.text.strip()
+            if "link_pdf_v50" in st.session_state:
+                st.link_button("📥 DESCARGAR CERTIFICADO", st.session_state["link_pdf_v50"], use_container_width=True)
 
 # ==============================================================================
-# 6. TAB: KPIS EMPRESAS (REPORTE DE LOG_DOTACION)
+# 6. TAB: KPIS EMPRESAS (REPORTE DE MOVIMIENTOS)
 # ==============================================================================
-if rol_sergio != "USUARIO":
-    with tabs[t_list_final.index("📊 KPIS EMPRESAS")]:
-        st.header("📊 Inteligencia de Movimientos de Personal")
-        df_log_dot = cargar_datos(ID_COLABORADORES, "Log_Dotacion")
-        if not df_log_dot.empty:
-            st.write("### Historial Reciente de Altas y Bajas")
-            st.dataframe(df_log_dot.sort_values(by=df_log_dot.columns[0], ascending=False), use_container_width=True)
-            
-            c_graf1, c_graf2 = st.columns(2)
-            with c_graf1:
-                st.write("#### Movimientos por Empresa")
-                st.plotly_chart(px.bar(df_log_dot, x=df_log_dot.columns[1], color=df_log_dot.columns[2], barmode='group'), use_container_width=True)
-            with c_graf2:
-                st.write("#### Análisis de Causales")
-                st.plotly_chart(px.pie(df_log_dot, names=df_log_dot.columns[6]), use_container_width=True)
+if rol_u != "USUARIO":
+    with tabs[nombres_tabs.index("📊 KPIS EMPRESAS")]:
+        st.header("📊 Inteligencia de Colaboradores")
+        df_l_dot = cargar_datos(ID_COLABORADORES, "Log_Dotacion")
+        if not df_l_dot.empty:
+            st.write("### Historial de Altas y Bajas Registradas")
+            st.dataframe(df_l_dot.sort_values(by=df_l_dot.columns[0], ascending=False), use_container_width=True)
+            c_g1, c_g2 = st.columns(2)
+            with c_g1:
+                st.plotly_chart(px.bar(df_l_dot, x=df_l_dot.columns[1], color=df_l_dot.columns[2], barmode='group', title="Movimientos por Empresa"), use_container_width=True)
+            with c_g2:
+                st.plotly_chart(px.pie(df_l_dot, names=df_l_dot.columns[6], title="Distribución de Causales"), use_container_width=True)
         else:
-            st.info("Aún no se registran movimientos en la base de datos Log_Dotacion.")
+            st.info("No hay registros de movimientos aún.")
 
 # ==============================================================================
-# 7. TAB: CARGA MENSUAL (EXPLÍCITA - 8 CARGADORES)
+# 7. TAB: CARGA MENSUAL (8 BLOQUES EXPLÍCITOS)
 # ==============================================================================
-with tabs[t_list_final.index("📤 Carga Mensual")]:
-    st.header("📤 Portal de Carga de Información Mensual")
-    if mes_sidebar_sel == "AÑO COMPLETO": st.warning("Seleccione un Mes en el sidebar para habilitar la carga.")
+with tabs[nombres_tabs.index("📤 Carga Mensual")]:
+    st.header("📤 Portal de Carga de Documentación")
+    if mes_filt == "AÑO COMPLETO":
+        st.warning("Seleccione un Mes específico en el sidebar para habilitar la carga.")
     else:
-        cm1, cm2 = st.columns([1.7, 1.3])
-        with cm2:
-            st.markdown("""<div class='caja-instrucciones' style='border-left: 8px solid #FF8C00;'>
-            <h4>📖 Instrucciones de Carga</h4><p style='font-size:14px; color:#d9534f;'><b>⚠️ REGLA: MÁXIMO 20MB POR ARCHIVO.</b></p>
-            <ul style='font-size:13px; line-height:1.7;'>
-                <li><b>1. Liquidaciones:</b> PDF único con todas las del mes.</li>
-                <li><b>2. Pagos:</b> PDF con comprobantes de pago/anticipos.</li>
-                <li><b>3. Cotizaciones:</b> Planillas de pago Previred.</li>
-                <li><b>4. Libro:</b> Archivo CSV de remuneraciones (LRE).</li>
-                <li><b>5. Comp. DT:</b> Comprobante de registro LRE en DT.</li>
-                <li><b>6. F30:</b> Certificado de Antecedentes actualizado.</li>
-                <li><b>7. F30-1:</b> Certificado de Cumplimiento actualizado.</li>
-                <li><b>8. Planilla Control:</b> Archivo Excel (.XLS) de seguimiento.</li>
-            </ul></div>""", unsafe_allow_html=True)
-        with cm1:
-            e_u_m = st.session_state['u_emp'] if rol_sergio == "USUARIO" else st.selectbox("EECC a Cargar:", sorted(df_av_maestro[col_emp_check].unique()), key="sel_m_v47")
+        col_c1, col_c2 = st.columns([1.7, 1.3])
+        with col_c2:
+            st.markdown("""
+                <div class='caja-instrucciones'>
+                    <h4>📖 Requisitos de Carga</h4>
+                    <p style='font-size:14px; color:#d9534f;'><b>MÁXIMO 20MB POR ARCHIVO.</b></p>
+                    <ul style='font-size:13px; line-height:1.6;'>
+                        <li><b>Liquidaciones:</b> Un solo PDF con toda la nómina.</li>
+                        <li><b>Comprobantes:</b> Transferencias o cheques del mes.</li>
+                        <li><b>Previred:</b> Planilla de pago y resumen.</li>
+                        <li><b>Libro:</b> Archivo CSV generado para la DT.</li>
+                        <li><b>F30 y F30-1:</b> Certificados vigentes de la DT.</li>
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        with col_c1:
+            emp_carga = st.session_state['u_emp'] if rol_u == "USUARIO" else st.selectbox("EECC a Cargar:", sorted(df_av_global[col_emp_nombre].unique()), key="sel_carga_v50")
             st.divider()
             
-            def procesar_subida(f, pref, empresa):
-                if f and f.size <= 20*1024*1024:
-                    mt = df_id_empresas_db[df_id_empresas_db['EMPRESA'].str.contains(empresa[:10], case=False, na=False)]
-                    if not mt.empty:
-                        idf = str(mt.iloc[0]['IDCARPETA']).strip(); ex = f.name.split('.')[-1]
-                        py = {"tipo":"mensual","id_carpeta":idf,"anio":anio_gestion,"nombre_final":f"{pref}_{mes_sidebar_sel}.{ex}","mes_nombre":MAPA_MESES_CARP[mes_sidebar_sel],"archivo_base64":base64.b64encode(f.read()).decode('utf-8')}
-                        if requests.post(URL_APPS_SCRIPT, data=py).status_code == 200: st.success(f"Archivo {pref} enviado.")
-                elif f: st.error("⚠️ El archivo supera los 20MB permitidos.")
+            # Función interna de subida
+            def ejecutar_subida(archivo, prefijo, empresa):
+                if archivo and archivo.size <= 20*1024*1024:
+                    match_e = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(empresa[:10], case=False, na=False)]
+                    if not match_e.empty:
+                        id_c = str(match_e.iloc[0]['IDCARPETA']).strip()
+                        ext = archivo.name.split('.')[-1]
+                        payload = {
+                            "tipo": "mensual", "id_carpeta": id_c, "anio": anio_sel,
+                            "nombre_final": f"{prefijo}_{mes_filt}.{ext}",
+                            "mes_nombre": MAPA_MESES_CARP[mes_filt],
+                            "archivo_base64": base64.b64encode(archivo.read()).decode('utf-8')
+                        }
+                        if requests.post(URL_APPS_SCRIPT, data=payload).status_code == 200:
+                            st.success(f"✅ {prefijo} subido correctamente.")
+                elif archivo:
+                    st.error("⚠️ El archivo es demasiado pesado (Máx 20MB).")
 
-            # CARGADORES UNO POR UNO (PARA MÁXIMA ESTABILIDAD)
-            u1 = st.file_uploader("1. Liquidaciones de Sueldo", type=["pdf"], key="u1")
-            if st.button("Subir Liquidaciones", key="bu1"): procesar_subida(u1, "LIQ", e_u_m)
+            # --- BLOQUE 1: LIQUIDACIONES ---
+            f1 = st.file_uploader("1. Liquidaciones de Sueldo (PDF)", type=["pdf"], key="f1")
+            if st.button("Subir Liquidaciones", key="btn1"): ejecutar_subida(f1, "LIQ", emp_carga)
             
-            u2 = st.file_uploader("2. Comprobantes de Pago", type=["pdf"], key="u2")
-            if st.button("Subir Comprobantes", key="bu2"): procesar_subida(u2, "PAGOS", e_u_m)
+            # --- BLOQUE 2: PAGOS ---
+            f2 = st.file_uploader("2. Comprobantes de Pago (PDF)", type=["pdf"], key="f2")
+            if st.button("Subir Comprobantes", key="btn2"): ejecutar_subida(f2, "PAGOS", emp_carga)
             
-            u3 = st.file_uploader("3. Cotizaciones Previred", type=["pdf"], key="u3")
-            if st.button("Subir Cotizaciones", key="bu3"): procesar_subida(u3, "PREVIRED", e_u_m)
+            # --- BLOQUE 3: PREVIRED ---
+            f3 = st.file_uploader("3. Cotizaciones Previred (PDF)", type=["pdf"], key="f3")
+            if st.button("Subir Cotizaciones", key="btn3"): ejecutar_subida(f3, "PREVIRED", emp_carga)
             
-            u4 = st.file_uploader("4. Libro Remuneraciones (CSV)", type=["csv"], key="u4")
-            if st.button("Subir Libro CSV", key="bu4"): procesar_subida(u4, "LIBRO", e_u_m)
+            # --- BLOQUE 4: LIBRO CSV ---
+            f4 = st.file_uploader("4. Libro Remuneraciones (CSV)", type=["csv"], key="f4")
+            if st.button("Subir Libro LRE", key="btn4"): ejecutar_subida(f4, "LIBRO", emp_carga)
             
-            u5 = st.file_uploader("5. Comprobante Envío DT", type=["pdf"], key="u5")
-            if st.button("Subir Comprobante DT", key="bu5"): procesar_subida(u5, "DT", e_u_m)
+            # --- BLOQUE 5: DT ---
+            f5 = st.file_uploader("5. Comprobante Registro DT (PDF)", type=["pdf"], key="f5")
+            if st.button("Subir Comprobante DT", key="btn5"): ejecutar_subida(f5, "DT", emp_carga)
             
-            u6 = st.file_uploader("6. Certificado F30", type=["pdf"], key="u6")
-            if st.button("Subir F30", key="bu6"): procesar_subida(u6, "F30", e_u_m)
+            # --- BLOQUE 6: F30 ---
+            f6 = st.file_uploader("6. Certificado F30 (PDF)", type=["pdf"], key="f6")
+            if st.button("Subir F30", key="btn6"): ejecutar_subida(f6, "F30", emp_carga)
             
-            u7 = st.file_uploader("7. Certificado F30-1", type=["pdf"], key="u7")
-            if st.button("Subir F30-1", key="bu7"): procesar_subida(u7, "F301", e_u_m)
+            # --- BLOQUE 7: F30-1 ---
+            f7 = st.file_uploader("7. Certificado F30-1 (PDF)", type=["pdf"], key="f7")
+            if st.button("Subir F30-1", key="btn7"): ejecutar_subida(f7, "F301", emp_carga)
             
-            u8 = st.file_uploader("8. Planilla de Control Mensual", type=["xlsx","xls"], key="u8")
-            if st.button("Subir Planilla Control", key="bu8"): procesar_subida(u8, "CTRL", e_u_m)
+            # --- BLOQUE 8: PLANILLA ---
+            f8 = st.file_uploader("8. Planilla Control Mensual (.XLSX)", type=["xlsx","xls"], key="f8")
+            if st.button("Subir Planilla Control", key="btn8"): ejecutar_subida(f8, "CTRL", emp_carga)
 
             st.divider()
-            if st.button("🏁 FINALIZAR CARGA Y NOTIFICAR", key="btn_not_m_v47", use_container_width=True):
-                requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email","empresa":e_u_m,"usuario":st.session_state["u_nom"],"periodo":f"CARGA MENSUAL: {mes_sidebar_sel} {anio_gestion}"})
-                st.success("Notificación enviada al equipo de auditoría.")
+            if st.button("🏁 FINALIZAR PROCESO DE CARGA", key="btn_not_carga", use_container_width=True):
+                requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email","empresa":emp_carga,"usuario":st.session_state["u_nom"],"periodo":f"CARGA MENSUAL: {mes_filt}"})
+                st.success("Notificación enviada al equipo auditor.")
 
 # ==============================================================================
-# 8. TAB: DOTACION (DINÁMICA ALTA/BAJA - EXPLÍCITA)
+# 8. TAB: COLABORADORES EECC (ALTA/BAJA)
 # ==============================================================================
-with tabs[t_list_final.index("👥 DOTACION")]:
-    st.header("👥 Gestión de Movimientos de Personal")
-    tipo_m_s = st.radio("Acción a Registrar:", ["🟢 Alta (Nuevo Ingreso)", "🔴 Baja (Egreso/Traslado)"], horizontal=True)
+with tabs[nombres_tabs.index("👥 Colaboradores EECC")]:
+    st.header("👥 Gestión de Colaboradores EECC")
+    t_mov_sel = st.radio("Acción a Registrar:", ["🟢 Alta (Ingreso)", "🔴 Baja (Egreso)"], horizontal=True)
     st.divider()
     
-    col_dx1, col_dx2 = st.columns([1.7, 1.3])
-    with col_dx2:
-        if "Alta" in tipo_m_s:
-            color_dx = "#1E90FF"; tit_dx = "Requisitos de Alta (Ingreso)"
-            req_dx = """<li>Contrato de Trabajo</li><li>Anexo de Traslado</li><li>Cédula Identidad</li>
-                        <li>Certificado Afiliacion AFP</li><li>Certificado Afiliacion Salud</li>
-                        <li>Registro Contrato en DT</li><li>Entrega de RIOHS</li>"""
-        else:
-            color_dx = "#d9534f"; tit_dx = "Requisitos de Baja (Egreso)"
-            req_dx = """<li>Finiquito Legalizado + Comprobante Pago</li><li>Anexo Traslado de Faena</li>"""
-            
-        st.markdown(f"""<div class='caja-instrucciones' style='border-left: 8px solid {color_dx};'>
-        <h4>📌 {tit_dx}</h4><p style='font-size:14px; color:#d9534f;'><b>REGLA: MÁXIMO 20MB POR ARCHIVO.</b></p>
-        <ul style='font-size:14px; line-height:1.7;'>{req_dx}</ul></div>""", unsafe_allow_html=True)
+    col_d1, col_d2 = st.columns([1.7, 1.3])
+    with col_d2:
+        c_dx = "#1E90FF" if "Alta" in t_mov_sel else "#d9534f"
+        req_dx = "<li>Contrato</li><li>AFP</li><li>Registro DT</li>" if "Alta" in t_mov_sel else "<li>Finiquito</li><li>Comprobante Pago</li>"
+        st.markdown(f"""
+            <div class='caja-instrucciones' style='border-left: 8px solid {c_dx};'>
+                <h4>📌 Requisitos</h4>
+                <ul style='font-size:14px; line-height:1.7;'>{req_dx}</ul>
+            </div>
+        """, unsafe_allow_html=True)
     
-    with col_dx1:
-        e_c_dx = st.session_state['u_emp'] if rol_sergio == "USUARIO" else st.selectbox("EECC Responsable:", sorted(df_av_maestro[col_emp_check].unique()), key="sel_d_v47")
-        dx_c1, dx_c2 = st.columns(2)
-        with dx_c1: t_nom_s = st.text_input("Nombre Trabajador:", placeholder="JUAN PEREZ")
-        with dx_c2: 
-            t_rut_s = st.text_input("RUT (ej: 12345678-9):", placeholder="12.345.678-9")
-            r_ok_s = validar_rut(t_rut_s) if t_rut_s else False
-            if t_rut_s: st.caption("✅ RUT Válido" if r_ok_s else "❌ RUT Inválido")
+    with col_d1:
+        emp_d = st.session_state['u_emp'] if rol_u == "USUARIO" else st.selectbox("EECC Responsable:", sorted(df_av_global[col_emp_nombre].unique()), key="sel_d_v50")
+        dx1, dx2 = st.columns(2)
+        with dx1: nom_d = st.text_input("Nombre Completo:")
+        with dx2: rut_d = st.text_input("RUT Trabajador:")
         
-        dx_c3, dx_c4 = st.columns(2)
-        with dx_c3: t_fec_s = st.date_input("Fecha Efectiva:", datetime.now())
-        with dx_c4: t_cau_s = st.selectbox("Causal de Movimiento:", CAUSALES_LEGALES_CHILE) if "Baja" in tipo_m_s else "Nuevo Ingreso"
-
+        dx3, dx4 = st.columns(2)
+        with dx3: fec_d = st.date_input("Fecha Efectiva:", datetime.now())
+        with dx4: cau_d = st.selectbox("Causal de Movimiento:", CAUSALES_LEGALES) if "Baja" in t_mov_sel else "Nuevo Ingreso"
+        
         st.divider()
-        ar_dot_s = st.file_uploader("Cargar Documentación (PDF):", type=["pdf"], accept_multiple_files=True, key="bulk_dot_v47")
+        files_d = st.file_uploader("Cargar Documentación (PDFs):", type=["pdf"], accept_multiple_files=True, key="bulk_d_v50")
         
-        # BOTÓN DE REGISTRO EN BASE DE DATOS LOG_DOTACION
-        if st.button("🚀 PROCESAR Y REGISTRAR MOVIMIENTO", key="btn_not_d_v47", use_container_width=True):
-            if t_nom_s and r_ok_s and ar_dot_s:
-                if any(az.size > 20*1024*1024 for az in ar_dot_s): st.error("⚠️ Un archivo excede los 20MB.")
-                else:
-                    mt_dx = df_id_empresas_db[df_id_empresas_db['EMPRESA'].str.contains(e_c_dx[:10], case=False, na=False)]
-                    if not mt_dx.empty:
-                        idf_dx = str(mt_dx.iloc[0]['IDCARPETA']).strip()
-                        for fi_s in ar_dot_s:
-                            requests.post(URL_APPS_SCRIPT, data={"tipo":"colaborador","id_carpeta":idf_dx,"nombre_persona":t_nom_s.upper(),"rut":t_rut_s,"nombre_final":fi_s.name,"archivo_base64":base64.b64encode(fi_s.read()).decode('utf-8')})
-                        
-                        # Notificación Estructurada y Grabado en Hoja Log_Dotacion
-                        body_rrhh = f"Acción: {tipo_m_s}\nTrabajador: {t_nom_s.upper()}\nFecha: {t_fec_s.strftime('%d/%m/%Y')}\nCausal: {t_cau_s}"
-                        
+        if st.button("🚀 REGISTRAR MOVIMIENTO", key="btn_reg_dot", use_container_width=True):
+            if nom_d and validar_rut(rut_d) and files_d:
+                match_d = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_d[:10], case=False, na=False)]
+                if not match_d.empty:
+                    id_cd = str(match_d.iloc[0]['IDCARPETA']).strip()
+                    for arc in files_d:
                         requests.post(URL_APPS_SCRIPT, data={
-                            "accion": "enviar_email", 
-                            "tipo": "colaborador", 
-                            "empresa": e_c_dx,
-                            "usuario": st.session_state["u_nom"],
-                            "movimiento": tipo_m_s,
-                            "nombre_persona": t_nom_s.upper(),
-                            "rut": t_rut_s,
-                            "fecha_evento": t_fec_s.strftime('%d/%m/%Y'),
-                            "causal": t_cau_s,
-                            "periodo": body_rrhh
+                            "tipo": "colaborador", "id_carpeta": id_cd, "nombre_persona": nom_d.upper(),
+                            "rut": rut_d, "nombre_final": arc.name, 
+                            "archivo_base64": base64.b64encode(arc.read()).decode('utf-8')
                         })
-                        st.success(f"✅ Movimiento de {t_nom_s.upper()} registrado exitosamente.")
-            else: st.warning("Por favor complete todos los datos y cargue los archivos requeridos.")
+                    
+                    # Registro en Base de Datos Log_Dotacion
+                    requests.post(URL_APPS_SCRIPT, data={
+                        "accion": "enviar_email", "tipo": "colaborador", "empresa": emp_d,
+                        "usuario": st.session_state["u_nom"], "movimiento": t_mov_sel,
+                        "nombre_persona": nom_d.upper(), "rut": rut_d,
+                        "fecha_evento": fec_d.strftime('%d/%m/%Y'), "causal": cau_d,
+                        "periodo": f"MOVIMIENTO: {t_mov_sel} - {nom_d.upper()}"
+                    })
+                    st.success(f"✅ Colaborador {nom_d.upper()} registrado exitosamente.")
+            else:
+                st.warning("Verifique el RUT y asegúrese de subir los documentos.")
 
-# --- TAB: ADMIN ---
-if rol_sergio != "USUARIO":
-    with tabs[4]:
-        st.header("⚙️ Gestión Administrativa"); st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
+# --- ADMIN TAB ---
+if rol_u != "USUARIO":
+    with tabs[nombres_tabs.index("⚙️ Admin")]:
+        st.header("⚙️ Configuración de Usuarios")
+        st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
 st.markdown("---")
-st.caption("Control Laboral CMSG | Gestión de Contratistas | Desarrollado por C & S Asociados.")
+st.caption("Control Laboral CMSG | Gestión Centralizada de Contratistas | v50")
