@@ -133,9 +133,9 @@ if "authenticated" not in st.session_state:
     c_l1, c_l2, c_l3 = st.columns([1, 2, 1])
     with c_l2:
         if os.path.exists("CMSG.png"): st.image("CMSG.png", width=220)
-        st.title("Portal Cumplimiento CMSG")
-        pwd_inp = st.text_input("Contraseña Corporativa:", type="password").strip()
-        if st.button("INGRESAR AL PORTAL", use_container_width=True):
+        st.title("Portal Cumplimiento Laboral CMSG")
+        pwd_inp = st.text_input("Ingrese su Contraseña:", type="password").strip()
+        if st.button("Ingresar al Portal", use_container_width=True):
             df_usuarios = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_usuarios.empty:
                 col_clave = next((c for c in df_usuarios.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
@@ -179,7 +179,7 @@ rol_u = st.session_state["u_rol"]
 if rol_u == "USUARIO":
     nombres_tabs = ["📉 Dashboard", "📤 Carga Mensual", "👥 Colaboradores EECC"]
 else:
-    nombres_tabs = ["📉 Dashboard", "📊 KPIS EMPRESAS", "📤 Carga Mensual", "👥 Colaboradores EECC", "⚙️ Admin"]
+    nombres_tabs = ["📉 Dashboard", "📊 KPIS Empresas", "📤 Carga Mensual", "👥 Colaboradores EECC", "⚙️ Admin"]
 
 tabs = st.tabs(nombres_tabs)
 
@@ -219,7 +219,7 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
         m3.metric("EECC 100% Cumple", int(conteo_excelencia))
 
         st.divider()
-        st.subheader("📊 Documentos por Estado (Evaluables)")
+        st.subheader("📊 Documentos por Estado")
         
         # --- TARJETAS CUANTITATIVAS (SIN EL ESTADO 9 - 6 COLUMNAS) ---
         conteo_estados = df_num_dash.stack().value_counts()
@@ -238,7 +238,7 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
             """, unsafe_allow_html=True)
 
         if mes_filt == "AÑO COMPLETO":
-            st.write("### 📈 Evolución Mensual de Estados (Sin N/C)")
+            st.write("### 📈 Evolución Mensual de Estados")
             data_evo = []
             for m_evo in cols_meses:
                 cnts = df_dash[m_evo].value_counts()
@@ -275,7 +275,7 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
         with col_cert:
             st.subheader("📄 Certificado")
             mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v60")
-            if st.button("Consultar PDF en Drive", use_container_width=True):
+            if st.button("Consultar Certificado", use_container_width=True):
                 match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
                 if not match_c.empty:
                     id_carp = str(match_c.iloc[0]['IDCARPETA']).strip()
@@ -284,13 +284,13 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
                     if res_c.text.startswith("http"):
                         st.session_state["link_pdf_v60"] = res_c.text.strip()
             if "link_pdf_v60" in st.session_state:
-                st.link_button("📥 DESCARGAR CERTIFICADO", st.session_state["link_pdf_v60"], use_container_width=True)
+                st.link_button("📥 Descargar Certificado", st.session_state["link_pdf_v60"], use_container_width=True)
 
 # ==============================================================================
 # 6. TAB 2: KPIS EMPRESAS (INTELIGENCIA BASADA EN LOG Y LIBROS)
 # ==============================================================================
 if rol_u != "USUARIO":
-    with tabs[nombres_tabs.index("📊 KPIS EMPRESAS")]:
+    with tabs[nombres_tabs.index("📊 KPIS Empresas")]:
         st.header("📊 Inteligencia de Colaboradores EECC")
         
         # Carga de Log de Dotación y Libros Mensuales
@@ -357,10 +357,14 @@ with tabs[nombres_tabs.index("📤 Carga Mensual")]:
                     <p style='font-size:14px; color:#d9534f;'><b>MÁXIMO 20MB POR ARCHIVO.</b></p>
                     <ul style='font-size:13px; line-height:1.6;'>
                         <li><b>Liquidaciones:</b> PDF con toda la nómina mensual.</li>
-                        <li><b>Comprobantes:</b> Transferencias o cheques.</li>
+                        <li><b>Comprobantes de Pago:</b> Transferencias Sueldos y Anticipos.</li>
                         <li><b>Previred:</b> Planilla de pago y resumen.</li>
-                        <li><b>Libro:</b> Archivo CSV generado para la DT.</li>
-                        <li><b>F30 y F30-1:</b> Certificados vigentes de la DT.</li>
+                        <li><b>Libro (LRE):</b> Archivo CSV generado para la DT.</li>
+                        <li><b>Comprobante:</b> Envio LRE a DT.</li>
+                        <li><b>F30:</b> Certificado con emision no mayor a 10 días.</li>
+                        <li><b>F30-1:</b> Certificado solo con trabajadores vigentes en CMSG.</li>
+                        <li><b>Planilla:</b> Planilla de Control Mensual Trabajadores Vigentes.</li>
+                        <li><b>Al Terminar: Presionar Boton "Finalizar Proceso de Carga".</li>
                     </ul>
                 </div>
             """, unsafe_allow_html=True)
@@ -397,7 +401,7 @@ with tabs[nombres_tabs.index("📤 Carga Mensual")]:
             f4 = st.file_uploader("4. Libro Remuneraciones (CSV)", type=["csv"], key="f4")
             if st.button("Subir Libro LRE", key="btn4"): ejecutar_subida(f4, "LIBRO", emp_carga)
             
-            f5 = st.file_uploader("5. Comprobante Registro DT (PDF)", type=["pdf"], key="f5")
+            f5 = st.file_uploader("5. Comprobante envio LRE a DT (PDF)", type=["pdf"], key="f5")
             if st.button("Subir Comprobante DT", key="btn5"): ejecutar_subida(f5, "DT", emp_carga)
             
             f6 = st.file_uploader("6. Certificado F30 (PDF)", type=["pdf"], key="f6")
@@ -425,7 +429,7 @@ with tabs[nombres_tabs.index("👥 Colaboradores EECC")]:
     col_d1, col_d2 = st.columns([1.7, 1.3])
     with col_d2:
         c_dx = "#1E90FF" if "Alta" in t_mov_sel else "#d9534f"
-        req_dx = "<li>Contrato</li><li>AFP/Isapre</li><li>Registro DT</li>" if "Alta" in t_mov_sel else "<li>Finiquito</li><li>Comprobante Pago</li>"
+        req_dx = "<li>Contrato de Contrato</li><li>Anexo de Contrato</li><li>Cedula de Identidad</li><li>Certificado de AFP/Salud</li><li>Comprobante Registro Contrato DT</li><li>Comprobante entrega RIOHS</li>" if "Alta" in t_mov_sel else "<li>Finiquito Legalizado + Comprobante de Pago</li><li>Anexo de Traslado de Faena</li>"
         st.markdown(f"<div class='caja-instrucciones' style='border-left: 8px solid {c_dx};'><h4>📌 Requisitos</h4><ul style='font-size:14px;'>{req_dx}</ul></div>", unsafe_allow_html=True)
     
     with col_d1:
