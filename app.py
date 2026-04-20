@@ -19,7 +19,7 @@ st.set_page_config(
 )
 chile_tz = pytz.timezone('America/Santiago')
 
-# Inyección de CSS Profesional - No se resume nada para mantener consistencia visual
+# Inyección de CSS de Alta Fidelidad (Sin recortes para mantener la estética CMSG)
 st.markdown("""
     <style>
     /* Ocultar etiquetas de peso predeterminadas de Streamlit */
@@ -27,7 +27,7 @@ st.markdown("""
     .stFileUploader section div div { display: none !important; }
     .stFileUploader section div { padding-top: 5px !important; }
     
-    /* Contenedores de información y tarjetas de ayuda */
+    /* Contenedores de información y tarjetas */
     .caja-instrucciones {
         background-color: #f8f9fa; 
         padding: 25px; 
@@ -37,7 +37,7 @@ st.markdown("""
         box-shadow: 0px 4px 6px rgba(0,0,0,0.05);
     }
     
-    /* Botones de Acción Maestros */
+    /* Botones Maestros de Acción */
     .stButton > button { 
         width: 100%; 
         border-radius: 12px; 
@@ -47,14 +47,14 @@ st.markdown("""
         transition: 0.3s ease all;
     }
     
-    /* Indicadores de Métricas KPI */
+    /* Indicadores KPI de gran tamaño */
     [data-testid="stMetricValue"] { 
         font-size: 38px; 
         color: #1E90FF; 
         font-weight: 900; 
     }
 
-    /* Tarjetas de estado cuantitativas para el Dashboard */
+    /* Tarjetas cuantitativas por estado (Dashboard) */
     .metric-card {
         text-align: center;
         padding: 12px;
@@ -67,14 +67,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# IDs DE BASES DE DATOS (GOOGLE SHEETS)
+# CONFIGURACIÓN DE CONEXIONES Y BASES DE DATOS (IDs REALES)
 URL_APPS_SCRIPT = "https://script.google.com/macros/s/AKfycbwt9t5vQBsijY4eI9yF-sI82ctU5HGuW8xE2WVPwUBjOvaqGSGh7bi1DZaazU7NQEavfA/exec"
 ID_AVANCE = "1H-L5zzWlm1_bubJab3G_kztzWBfgUZuPnFvrbcFvj7Y"
 ID_EMPRESAS = "1sC0BNZTc1UuOVhl9UqaBqCehuXso3AxqBVwQ7tm4Ybo" 
 ID_USUARIOS = "1FnjiFO_m2h1BqlzNFnR5AQhBY8924MrAg-QP8oZV7CY"
 ID_COLABORADORES = "1EAJF1P2W2cFkl-QvD6RwTpms-_R_aYeabDZxIyOB4W0"
 
-# CONFIGURACIÓN DE RRHH Y CAUSALES
+# CONFIGURACIÓN DE RECURSOS HUMANOS Y CAUSALES
 CAUSALES_LEGALES = [
     "Art. 159 N°1: Mutuo acuerdo", "Art. 159 N°2: Renuncia voluntaria",
     "Art. 159 N°4: Vencimiento de plazo", "Art. 159 N°5: Conclusión de servicio",
@@ -102,7 +102,7 @@ MAPA_MESES_CARP = {'ENE':'01_ENE','FEB':'02_FEB','MAR':'03_MAR','ABR':'04_ABR','
 # 2. FUNCIONES DE SOPORTE (LÓGICA EXPLÍCITA)
 # ==============================================================================
 def validar_rut(rut):
-    """Algoritmo de validación de RUT chileno con dígito verificador."""
+    """Algoritmo de validación de RUT chileno."""
     rut = str(rut).replace(".", "").replace("-", "").upper().strip()
     if not re.match(r"^\d{7,8}[0-9K]$", rut): return False
     cuerpo, dv = rut[:-1], rut[-1]
@@ -116,18 +116,17 @@ def validar_rut(rut):
 
 @st.cache_data(ttl=300)
 def cargar_datos(sheet_id, hoja):
-    """Carga de datos desde Google Sheets a través de consulta CSV."""
+    """Carga de datos desde Google Sheets vía consulta CSV."""
     try:
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={hoja}"
         df = pd.read_csv(url, encoding='utf-8-sig')
-        # Limpieza de nombres de columnas (Quitar espacios y caracteres especiales)
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
         return df.dropna(how='all')
     except:
         return pd.DataFrame()
 
 # ==============================================================================
-# 3. SISTEMA DE ACCESO Y SEGURIDAD (LOGIN)
+# 3. SISTEMA DE ACCESO (LOGIN)
 # ==============================================================================
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -149,7 +148,7 @@ if "authenticated" not in st.session_state:
                         "u_email": u_data.get('EMAIL','')
                     })
                     st.rerun()
-                else: st.error("Credenciales incorrectas. Intente nuevamente.")
+                else: st.error("Acceso denegado: Credenciales inválidas.")
     st.stop()
 
 # ==============================================================================
@@ -162,7 +161,7 @@ with st.sidebar:
     st.markdown("---")
     anio_sel = st.selectbox("Año de Gestión", ["2026", "2025"])
     
-    # Mejora: Botón para refrescar datos en vivo
+    # Mejora: Refresco manual para actualizar datos del Excel
     if st.button("🔄 ACTUALIZAR DATOS"):
         st.cache_data.clear()
         st.rerun()
@@ -197,13 +196,13 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
         # --- LÓGICA DE CUMPLIMIENTO REAL (EXCLUYENDO EL 9) ---
         df_num_dash = df_dash[cols_periodo].apply(pd.to_numeric, errors='coerce')
         df_audit_dash = df_num_dash.copy()
-        df_audit_dash[df_audit_dash == 9] = pd.NA # El 9 no afecta el promedio real
+        df_audit_dash[df_audit_dash == 9] = pd.NA # El estado 9 no afecta el promedio
         
         total_eval = df_audit_dash.count().sum()
         total_5 = (df_audit_dash == 5).sum().sum()
         perc_real = (total_5 / total_eval * 100) if total_eval > 0 else 0
         
-        # --- KPI DE EXCELENCIA: EECC CON 100% CUMPLIMIENTO (ESTADO 5) ---
+        # --- KPI EXCELENCIA: EECC CON 100% CUMPLIMIENTO (ESTADO 5) ---
         def chequear_100_cumple(row):
             obligaciones = row[row.isin([1, 2, 3, 4, 5, 8])]
             if obligaciones.empty: return False
@@ -213,15 +212,16 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
 
         st.header(f"Seguimiento de Cumplimiento - {mes_filt} {anio_sel}")
         
+        # Fila de KPIs Principales
         m1, m2, m3 = st.columns(3)
         m1.metric("EECC en el Sistema", len(df_dash))
         m2.metric("% Cumplimiento Real", f"{perc_real:.1f}%")
         m3.metric("EECC 100% Cumple", int(conteo_excelencia))
 
         st.divider()
-        st.subheader("📊 Cantidad de Documentos por Estado (Evaluables)")
+        st.subheader("📊 Documentos por Estado (Evaluables)")
         
-        # --- TARJETAS CUANTITATIVAS (6 COLUMNAS - ESTADO 9 EXCLUIDO) ---
+        # --- TARJETAS CUANTITATIVAS (SIN EL ESTADO 9 - 6 COLUMNAS) ---
         conteo_estados = df_num_dash.stack().value_counts()
         c_cards = st.columns(6) 
         lista_estados_ver = [1, 2, 3, 4, 5, 8]
@@ -249,32 +249,32 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
                 st.plotly_chart(px.bar(pd.DataFrame(data_evo), x='Mes', y='Cantidad', color='Estado', color_discrete_map=COLORES_ESTADOS, barmode='stack'), use_container_width=True)
 
         st.divider()
-        emp_analisis = st.selectbox("Seleccione Empresa para Detalle Individual:", sorted(df_dash[col_emp_nombre].unique()))
+        emp_analisis = st.selectbox("Analizar Empresa Individual:", sorted(df_dash[col_emp_nombre].unique()))
         df_emp_especifica = df_dash[df_dash[col_emp_nombre] == emp_analisis]
         col_graf, col_cert = st.columns([3, 1.2])
         
         with col_graf:
+            # Gráfico Circular de la empresa seleccionada (Sin estado 9)
             p_data = df_emp_especifica[cols_meses].stack().value_counts().reset_index()
             p_data.columns = ['Cod', 'Cant']
-            p_data = p_data[p_data['Cod'] != 9] # Filtrado de Estado 9 en gráfico circular
+            p_data = p_data[p_data['Cod'] != 9]
             p_data['Estado'] = p_data['Cod'].map(MAPA_ESTADOS)
             st.plotly_chart(px.pie(p_data, values='Cant', names='Estado', hole=.4, color='Estado', color_discrete_map=COLORES_ESTADOS, title=f"Distribución Estatus: {emp_analisis}"), use_container_width=True)
             
-            st.write("#### 📜 Semáforo Histórico (Estado Mensual)")
-            m_grupo1, m_grupo2 = cols_meses[:6], cols_meses[6:]
+            # Semáforo histórico de 12 meses
+            st.write("#### 📜 Semáforo Histórico (Estatus Mensual)")
+            m_g1, m_g2 = cols_meses[:6], cols_meses[6:]
             def dibujar_semaforo(lista_m):
                 cols_sem = st.columns(6)
                 for idx, mes_s in enumerate(lista_m):
                     val_s = int(df_emp_especifica[mes_s].values[0]) if pd.notna(df_emp_especifica[mes_s].values[0]) else 8
-                    txt_s = MAPA_ESTADOS.get(val_s)
-                    bg_s = COLORES_ESTADOS.get(txt_s, "#555555")
-                    tc_s = "#000000" if txt_s in ["Observado", "Cumple", "En Revision"] else "#FFFFFF"
+                    txt_s = MAPA_ESTADOS.get(val_s); bg_s = COLORES_ESTADOS.get(txt_s, "#555"); tc_s = "#000" if txt_s in ["Observado", "Cumple", "En Revision"] else "#FFF"
                     cols_sem[idx].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{bg_s}; color:{tc_s}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'><b style='font-size:11px;'>{mes_s}</b><br><span style='font-size:8px; font-weight:bold;'>{txt_s.upper()}</span></div>", unsafe_allow_html=True)
-            dibujar_semaforo(m_grupo1); st.write(""); dibujar_semaforo(m_grupo2)
+            dibujar_semaforo(m_g1); st.write(""); dibujar_semaforo(m_g2)
 
         with col_cert:
             st.subheader("📄 Certificado")
-            mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v58")
+            mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v60")
             if st.button("Consultar PDF en Drive", use_container_width=True):
                 match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
                 if not match_c.empty:
@@ -282,30 +282,67 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
                     nom_archivo = f"Certificado.{MAPA_MESES_NUM[mes_c]}{anio_sel}.pdf"
                     res_c = requests.get(URL_APPS_SCRIPT, params={"nombre": nom_archivo, "carpeta": id_carp})
                     if res_c.text.startswith("http"):
-                        st.session_state["link_pdf_v58"] = res_c.text.strip()
-            if "link_pdf_v58" in st.session_state:
-                st.link_button("📥 DESCARGAR CERTIFICADO", st.session_state["link_pdf_v58"], use_container_width=True)
+                        st.session_state["link_pdf_v60"] = res_c.text.strip()
+            if "link_pdf_v60" in st.session_state:
+                st.link_button("📥 DESCARGAR CERTIFICADO", st.session_state["link_pdf_v60"], use_container_width=True)
 
 # ==============================================================================
-# 6. TAB: KPIS EMPRESAS (REPORTE DE MOVIMIENTOS)
+# 6. TAB 2: KPIS EMPRESAS (INTELIGENCIA BASADA EN LOG Y LIBROS)
 # ==============================================================================
 if rol_u != "USUARIO":
     with tabs[nombres_tabs.index("📊 KPIS EMPRESAS")]:
-        st.header("📊 Inteligencia de Colaboradores")
-        df_l_dot = cargar_datos(ID_COLABORADORES, "Log_Dotacion")
-        if not df_l_dot.empty:
-            st.write("### Historial de Altas y Bajas Registradas")
-            st.dataframe(df_l_dot.sort_values(by=df_l_dot.columns[0], ascending=False), use_container_width=True)
-            c_g1, c_g2 = st.columns(2)
-            with c_g1:
-                st.plotly_chart(px.bar(df_l_dot, x=df_l_dot.columns[1], color=df_l_dot.columns[2], barmode='group', title="Movimientos por Empresa"), use_container_width=True)
-            with c_g2:
-                st.plotly_chart(px.pie(df_l_dot, names=df_l_dot.columns[6], title="Distribución de Causales"), use_container_width=True)
+        st.header("📊 Inteligencia de Colaboradores EECC")
+        
+        # Carga de Log de Dotación y Libros Mensuales
+        df_log_dot = cargar_datos(ID_COLABORADORES, "Log_Dotacion")
+        # Hoja del mes seleccionado (ej: ENE26)
+        nombre_hoja_mes = f"{mes_filt}{anio_sel[2:]}" if mes_filt != "AÑO COMPLETO" else None
+        df_libro_mes = cargar_datos(ID_COLABORADORES, nombre_hoja_mes) if nombre_hoja_mes else pd.DataFrame()
+
+        if not df_log_dot.empty:
+            st.write("### 📈 Dinámica de Movimientos (Ingresos, Finiquitos y Traslados)")
+            
+            # Filtro por Empresa para KPIs
+            eecc_filt = st.multiselect("Filtrar por EECC:", sorted(df_log_dot[df_log_dot.columns[1]].unique()))
+            df_kpi_log = df_log_dot[df_log_dot[df_log_dot.columns[1]].isin(eecc_filt)] if eecc_filt else df_log_dot
+            
+            k_c1, k_c2, k_c3, k_c4 = st.columns(4)
+            altas = len(df_kpi_log[df_kpi_log[df_kpi_log.columns[2]].str.contains("Alta", na=False)])
+            bajas = len(df_kpi_log[df_kpi_log[df_kpi_log.columns[2]].str.contains("Baja", na=False)])
+            traslados = len(df_kpi_log[df_kpi_log[df_kpi_log.columns[6]].str.contains("Traslado", na=False)])
+            
+            k_c1.metric("Nuevos Ingresos", altas)
+            k_c2.metric("Finiquitos", bajas, delta_color="inverse")
+            k_c3.metric("Traslados Faena", traslados)
+            k_c4.metric("Dotación Neta", altas - bajas)
+            
+            st.divider()
+
+            # Sección de Género (Viene de los Libros Mensuales ENE26, FEB26...)
+            if not df_libro_mes.empty:
+                st.write(f"### 👥 Radiografía de Dotación: {nombre_hoja_mes}")
+                col_gen = next((c for c in df_libro_mes.columns if 'GEN' in str(c).upper()), None)
+                if col_gen:
+                    g_col1, g_col2 = st.columns([1, 2])
+                    with g_col1:
+                        c_gen = df_libro_mes[col_gen].value_counts().reset_index()
+                        c_gen.columns = ['Género', 'Cantidad']
+                        st.plotly_chart(px.pie(c_gen, values='Cantidad', names='Género', title="Distribución de Género", color_discrete_sequence=["#FF69B4", "#1E90FF"]), use_container_width=True)
+                    with g_col2:
+                        col_eecc_lib = next((c for c in df_libro_mes.columns if 'EMP' in str(c).upper()), df_libro_mes.columns[1])
+                        st.plotly_chart(px.bar(df_libro_mes, x=col_eecc_lib, color=col_gen, title="Hombres vs Mujeres por Empresa", barmode='group'), use_container_width=True)
+                else:
+                    st.warning(f"La hoja {nombre_hoja_mes} no contiene la columna 'GENERO'.")
+            else:
+                st.info("Seleccione un Mes específico en el sidebar para visualizar la demografía del Libro.")
+
+            st.write("### 📜 Detalle de Movimientos Registrados")
+            st.dataframe(df_kpi_log.sort_values(by=df_kpi_log.columns[0], ascending=False), use_container_width=True)
         else:
-            st.info("No hay registros de movimientos aún.")
+            st.info("No hay datos de movimientos aún.")
 
 # ==============================================================================
-# 7. TAB: CARGA MENSUAL (8 BLOQUES EXPLÍCITOS - SIN RECORTES)
+# 7. TAB 3: CARGA MENSUAL (8 BLOQUES EXPLÍCITOS - SIN COMPRIMIR)
 # ==============================================================================
 with tabs[nombres_tabs.index("📤 Carga Mensual")]:
     st.header("📤 Portal de Carga de Documentación")
@@ -319,8 +356,8 @@ with tabs[nombres_tabs.index("📤 Carga Mensual")]:
                     <h4>📖 Requisitos de Carga</h4>
                     <p style='font-size:14px; color:#d9534f;'><b>MÁXIMO 20MB POR ARCHIVO.</b></p>
                     <ul style='font-size:13px; line-height:1.6;'>
-                        <li><b>Liquidaciones:</b> Un solo PDF con toda la nómina.</li>
-                        <li><b>Comprobantes:</b> Transferencias o cheques del mes.</li>
+                        <li><b>Liquidaciones:</b> PDF con toda la nómina mensual.</li>
+                        <li><b>Comprobantes:</b> Transferencias o cheques.</li>
                         <li><b>Previred:</b> Planilla de pago y resumen.</li>
                         <li><b>Libro:</b> Archivo CSV generado para la DT.</li>
                         <li><b>F30 y F30-1:</b> Certificados vigentes de la DT.</li>
@@ -329,10 +366,9 @@ with tabs[nombres_tabs.index("📤 Carga Mensual")]:
             """, unsafe_allow_html=True)
         
         with col_c1:
-            emp_carga = st.session_state['u_emp'] if rol_u == "USUARIO" else st.selectbox("EECC a Cargar:", sorted(df_av_global[col_emp_nombre].unique()), key="sel_carga_v58")
+            emp_carga = st.session_state['u_emp'] if rol_u == "USUARIO" else st.selectbox("EECC a Cargar:", sorted(df_av_global[col_emp_nombre].unique()), key="sel_carga_v60")
             st.divider()
             
-            # Función de subida robusta
             def ejecutar_subida(archivo, prefijo, empresa):
                 if archivo and archivo.size <= 20*1024*1024:
                     match_e = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(empresa[:10], case=False, na=False)]
@@ -347,10 +383,8 @@ with tabs[nombres_tabs.index("📤 Carga Mensual")]:
                         }
                         if requests.post(URL_APPS_SCRIPT, data=payload).status_code == 200:
                             st.success(f"✅ {prefijo} subido correctamente.")
-                elif archivo:
-                    st.error("⚠️ El archivo supera los 20MB permitidos.")
-
-            # LOS 8 BLOQUES DE CARGA EXPLÍCITOS
+            
+            # --- LOS 8 BLOQUES DE CARGA EXPLÍCITOS ---
             f1 = st.file_uploader("1. Liquidaciones de Sueldo (PDF)", type=["pdf"], key="f1")
             if st.button("Subir Liquidaciones", key="btn1"): ejecutar_subida(f1, "LIQ", emp_carga)
             
@@ -376,12 +410,12 @@ with tabs[nombres_tabs.index("📤 Carga Mensual")]:
             if st.button("Subir Planilla Control", key="btn8"): ejecutar_subida(f8, "CTRL", emp_carga)
 
             st.divider()
-            if st.button("🏁 FINALIZAR PROCESO DE CARGA", key="btn_not_carga", use_container_width=True):
+            if st.button("🏁 FINALIZAR CARGA Y NOTIFICAR", key="btn_not_v60", use_container_width=True):
                 requests.post(URL_APPS_SCRIPT, data={"accion":"enviar_email","empresa":emp_carga,"usuario":st.session_state["u_nom"],"periodo":f"CARGA MENSUAL COMPLETA: {mes_filt}"})
-                st.success("Notificación enviada al equipo de auditoría.")
+                st.success("Notificación enviada al equipo auditor.")
 
 # ==============================================================================
-# 8. TAB: COLABORADORES EECC (LÓGICA DUAL INTEGRADA: DRIVE + EXCEL)
+# 8. TAB 4: COLABORADORES EECC (LÓGICA DUAL DRIVE + EXCEL)
 # ==============================================================================
 with tabs[nombres_tabs.index("👥 Colaboradores EECC")]:
     st.header("👥 Gestión de Colaboradores EECC")
@@ -391,11 +425,11 @@ with tabs[nombres_tabs.index("👥 Colaboradores EECC")]:
     col_d1, col_d2 = st.columns([1.7, 1.3])
     with col_d2:
         c_dx = "#1E90FF" if "Alta" in t_mov_sel else "#d9534f"
-        req_dx = "<li>Contrato de Trabajo</li><li>AFP / Isapre</li><li>Registro DT</li>" if "Alta" in t_mov_sel else "<li>Finiquito Legalizado</li><li>Comprobante Pago</li>"
+        req_dx = "<li>Contrato</li><li>AFP/Isapre</li><li>Registro DT</li>" if "Alta" in t_mov_sel else "<li>Finiquito</li><li>Comprobante Pago</li>"
         st.markdown(f"<div class='caja-instrucciones' style='border-left: 8px solid {c_dx};'><h4>📌 Requisitos</h4><ul style='font-size:14px;'>{req_dx}</ul></div>", unsafe_allow_html=True)
     
     with col_d1:
-        emp_d = st.session_state['u_emp'] if rol_u == "USUARIO" else st.selectbox("EECC Responsable:", sorted(df_av_global[col_emp_nombre].unique()), key="sel_d_v58")
+        emp_d = st.session_state['u_emp'] if rol_u == "USUARIO" else st.selectbox("EECC Responsable:", sorted(df_av_global[col_emp_nombre].unique()), key="sel_d_v60")
         dx1, dx2 = st.columns(2)
         with dx1: nom_d = st.text_input("Nombre Completo Trabajador:")
         with dx2: rut_d = st.text_input("RUT Trabajador (con guion):")
@@ -405,7 +439,7 @@ with tabs[nombres_tabs.index("👥 Colaboradores EECC")]:
         with dx4: cau_d = st.selectbox("Causal / Motivo:", CAUSALES_LEGALES) if "Baja" in t_mov_sel else "Nuevo Ingreso"
         
         st.divider()
-        files_d = st.file_uploader("Cargar Documentos de Respaldo (PDFs):", type=["pdf"], accept_multiple_files=True, key="bulk_d_v58")
+        files_d = st.file_uploader("Cargar Documentos de Respaldo (PDFs):", type=["pdf"], accept_multiple_files=True, key="bulk_d_v60")
         
         if st.button("🚀 REGISTRAR MOVIMIENTO", key="btn_reg_dot", use_container_width=True):
             if nom_d and validar_rut(rut_d) and files_d:
@@ -420,28 +454,27 @@ with tabs[nombres_tabs.index("👥 Colaboradores EECC")]:
                             "archivo_base64": base64.b64encode(arc.read()).decode('utf-8')
                         })
                     
-                    # 2. REGISTRO DUAL: Graba en Base de Datos y Envía Email de respaldo
-                    res_final = requests.post(URL_APPS_SCRIPT, data={
+                    # 2. REGISTRO DUAL: Envía datos para el Email Y el grabado en la hoja Log_Dotacion
+                    res_f = requests.post(URL_APPS_SCRIPT, data={
                         "accion": "enviar_email", "tipo": "colaborador", "empresa": emp_d,
                         "usuario": st.session_state["u_nom"], "movimiento": t_mov_sel,
                         "nombre_persona": nom_d.upper(), "rut": rut_d,
                         "fecha_evento": fec_d.strftime('%d/%m/%Y'), "causal": cau_d,
-                        "periodo": f"MOVIMIENTO: {t_mov_sel} - TRABAJADOR: {nom_d.upper()} - RUT: {rut_d}"
+                        "periodo": f"MOVIMIENTO: {t_mov_sel} - {nom_d.upper()}"
                     })
                     
-                    if "Exito" in res_final.text:
-                        st.success(f"✅ Proceso completado exitosamente en Drive y Base de Datos.")
+                    if "Exito" in res_f.text:
+                        st.success(f"✅ Registro completado exitosamente en Drive y Base de Datos.")
                     else:
-                        st.error(f"❌ Error de sistema al grabar en BD: {res_final.text}")
+                        st.error(f"⚠️ El archivo se guardó, pero la base de datos reportó un alcance: {res_f.text}")
             else:
-                st.warning("Verifique el RUT y asegúrese de subir los documentos de respaldo.")
+                st.warning("Verifique el RUT y asegúrese de subir los documentos.")
 
 # --- ADMIN TAB ---
 if rol_u != "USUARIO":
     with tabs[nombres_tabs.index("⚙️ Admin")]:
         st.header("⚙️ Configuración Administrativa")
-        st.write("### Listado de Usuarios con Acceso")
         st.dataframe(cargar_datos(ID_USUARIOS, "Usuarios"), use_container_width=True)
 
 st.markdown("---")
-st.caption("Control Laboral CMSG | Acorazado v58 | Sergio Edition")
+st.caption("Control Laboral CMSG | Acorazado v60 | Sergio Edition")
