@@ -116,21 +116,16 @@ def validar_rut(rut):
 
 @st.cache_data(ttl=300)
 def cargar_datos(sheet_id, hoja):
-    """Carga de datos desde Google Sheets vía consulta CSV optimizada."""
+    """Carga de datos desde Google Sheets vía consulta CSV."""
     try:
         time.sleep(0.3)
         url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={hoja}"
         df = pd.read_csv(url, encoding='utf-8-sig')
-	if df.empty:
-		return pd.DateFrame()
         df.columns = [re.sub(r'[^A-Z0-9]', '', str(c).upper()) for c in df.columns]
-	df.columns = [c if c != "" else f"COL_{i}" for i, c in enumerate(df.columns)]
-		
         return df.dropna(how='all')
     except Exception as e:
-	st.error(f"Error cargando hoja {hoja}: {str(e)}")
+        st.error(f"Error cargando hoja {hoja}: {str(e)}")
         return pd.DataFrame()
-
 # ==============================================================================
 # 3. SISTEMA DE ACCESO (LOGIN)
 # ==============================================================================
