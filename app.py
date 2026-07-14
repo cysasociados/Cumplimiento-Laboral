@@ -136,30 +136,40 @@ def cargar_datos(sheet_id, hoja):
         st.error(f"Error crítico cargando la hoja '{hoja}': {str(e)}")
         return pd.DataFrame()
 # ==============================================================================
-# 3. SISTEMA DE ACCESO (LOGIN)
+# # 3. SISTEMA DE ACCESO (LOGIN)
 # ==============================================================================
 if "authenticated" not in st.session_state:
     st.markdown("<br><br>", unsafe_allow_html=True)
     c_l1, c_l2, c_l3 = st.columns([1, 2, 1])
     with c_l2:
-        if os.path.exists("CMSG.png"): st.image("CMSG.png", width=220)
+        if os.path.exists("CMSG.png"): 
+            st.image("CMSG.png", width=220)
         st.title("Portal Cumplimiento Laboral CMSG")
         pwd_inp = st.text_input("Ingrese su Contraseña:", type="password").strip()
+        
         if st.button("Ingresar al Portal", use_container_width=True):
             df_usuarios = cargar_datos(ID_USUARIOS, "Usuarios")
             if not df_usuarios.empty:
                 col_clave = next((c for c in df_usuarios.columns if 'CLAVE' in str(c).upper()), 'CLAVE')
                 match = df_usuarios[df_usuarios[col_clave].astype(str).str.strip() == pwd_inp]
+                
                 if not match.empty:
                     u_data = match.iloc[0]
-                    st.session_state.update({
-                        "authenticated": True, "u_nom": u_data.get('NOMBRE',''), 
-                        "u_rol": u_data.get('ROL',''), "u_emp": u_data.get('EMPRESA',''), 
-                        "u_email": u_data.get('EMAIL','')
-                    })
-                    st.rerun()
-                else: st.error("Acceso denegado: Credenciales inválidas.")
-    st.stop()
+                    st.session_state["authenticated"] = True
+                    st.session_state["u_nom"] = u_data.get('NOMBRE','')
+                    st.session_state["u_rol"] = u_data.get('ROL','')
+                    st.session_state["u_emp"] = u_data.get('EMPRESA','')
+                    st.session_state["u_email"] = u_data.get('EMAIL','')
+                    
+                    st.success(f"¡Bienvenido, {st.session_state['u_nom']}! Cargando panel...")
+                    time.sleep(1.0) # Pausa segura para estabilizar los hilos del servidor
+                    st.empty()      # Limpia el contenedor visual de forma nativa
+                else: 
+                    st.error("Acceso denegado: Credenciales inválidas.")
+                    
+    # Si la autenticación falló o no ha ocurrido, detenemos la ejecución de la página aquí
+    if "authenticated" not in st.session_state:
+        st.stop()
 
 # ==============================================================================
 # 4. SIDEBAR Y CONFIGURACIÓN DE FILTROS GLOBALES
@@ -282,19 +292,44 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
                     cols_sem[idx].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{bg_s}; color:{tc_s}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'><b style='font-size:11px;'>{mes_s}</b><br><span style='font-size:8px; font-weight:bold;'>{txt_s.upper()}</span></div>", unsafe_allow_html=True)
             dibujar_semaforo(m_g1); st.write(""); dibujar_semaforo(m_g2)
 
-        with col_cert:
-            st.subheader("📄 Certificado")
-            mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v60")
-            if st.button("Consultar Certificado", use_container_width=True):
-                match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
-                if not match_c.empty:
-                    id_carp = str(match_c.iloc[0]['IDCARPETA']).strip()
-                    nom_archivo = f"Certificado.{MAPA_MESES_NUM[mes_c]}{anio_sel}.pdf"
-                    res_c = requests.get(URL_APPS_SCRIPT, params={"nombre": nom_archivo, "carpeta": id_carp})
-                    if res_c.text.startswith("http"):
-                        st.session_state["link_pdf_v60"] = res_c.text.strip()
-            if "link_pdf_v60" in st.session_state:
-                st.link_button("📥 Descargar Certificado", st.session_state["link_pdf_v60"], use_container_width=True)
+       with col_cert:
+    st.subheader("📄 Certificado")
+    mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v60")
+    
+    # Creamos un contenedor vacío para que los mensajes no se queden pegados arriba
+    placeholder_msg = st.empty()
+
+    if st.button("Consultar Certificado", use_container_width=True):
+        match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
+        
+        if not match_c.empty:
+            id_carp = str(match_c.iloc[0]['IDCARPETA']).strip()
+            
+            # Aseguramos que el mapa de meses numéricos tenga formato correcto (ej: "11" para NOV)
+            mes_num = str(MAPA_MESES_NUM[mes_c]).zfill(2) 
+            nom_archivo = f"Certificado.{mes_num}{anio_sel}.pdf"
+            
+            placeholder_msg.info(f"Buscando archivo: {nom_archivo}...")
+            
+            try:
+                res_c = requests.get(URL_APPS_SCRIPT, params={"nombre": nom_archivo, "carpeta": id_carp}, timeout=10)
+                
+                if res_c.text.startswith("http"):
+                    st.session_state["link_pdf_v60"] = res_c.text.strip()
+                    placeholder_msg.success("¡Certificado localizado con éxito!")
+                else:
+                    placeholder_msg.error("No se encontró el archivo físico en Google Drive con ese nombre.")
+                    if "link_pdf_v60" in st.session_state:
+                        del st.session_state["link_pdf_v60"]
+            except Exception as e:
+                placeholder_msg.error(f"Error de conexión al buscar el certificado: {str(e)}")
+        else:
+            placeholder_msg.error("No se encontró el identificador de la empresa en la base de datos.")
+
+    # Si el link ya existe en la sesión actual, mostramos el botón de descarga directa
+    if "link_pdf_v60" in st.session_state:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.link_button("📥 Descargar Certificado", st.session_state["link_pdf_v60"], use_container_width=True, type="primary")
 
 # ==============================================================================
 # 6. TAB 2: KPIS EMPRESAS (INTELIGENCIA BASADA EN LOG Y LIBROS)
