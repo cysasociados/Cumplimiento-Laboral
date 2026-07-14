@@ -291,46 +291,44 @@ with tabs[nombres_tabs.index("📉 Dashboard")]:
                     txt_s = MAPA_ESTADOS.get(val_s); bg_s = COLORES_ESTADOS.get(txt_s, "#555"); tc_s = "#000" if txt_s in ["Observado", "Cumple", "En Revision"] else "#FFF"
                     cols_sem[idx].markdown(f"<div style='text-align:center; border:1px solid #ddd; padding:8px; border-radius:8px; background-color:{bg_s}; color:{tc_s}; min-height:65px; display:flex; flex-direction:column; justify-content:center;'><b style='font-size:11px;'>{mes_s}</b><br><span style='font-size:8px; font-weight:bold;'>{txt_s.upper()}</span></div>", unsafe_allow_html=True)
             dibujar_semaforo(m_g1); st.write(""); dibujar_semaforo(m_g2)
+with col_cert:
+            st.subheader("📄 Certificado")
+            mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v60")
+            
+            # Creamos un contenedor vacío para que los mensajes no se queden pegados arriba
+            placeholder_msg = st.empty()
 
-       with col_cert:
-    st.subheader("📄 Certificado")
-    mes_c = st.selectbox("Seleccione Mes:", cols_meses, key="mes_cert_v60")
-    
-    # Creamos un contenedor vacío para que los mensajes no se queden pegados arriba
-    placeholder_msg = st.empty()
-
-    if st.button("Consultar Certificado", use_container_width=True):
-        match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
-        
-        if not match_c.empty:
-            id_carp = str(match_c.iloc[0]['IDCARPETA']).strip()
-            
-            # Aseguramos que el mapa de meses numéricos tenga formato correcto (ej: "11" para NOV)
-            mes_num = str(MAPA_MESES_NUM[mes_c]).zfill(2) 
-            nom_archivo = f"Certificado.{mes_num}{anio_sel}.pdf"
-            
-            placeholder_msg.info(f"Buscando archivo: {nom_archivo}...")
-            
-            try:
-                res_c = requests.get(URL_APPS_SCRIPT, params={"nombre": nom_archivo, "carpeta": id_carp}, timeout=10)
+            if st.button("Consultar Certificado", use_container_width=True):
+                match_c = df_empresas_ids[df_empresas_ids['EMPRESA'].str.contains(emp_analisis[:10], case=False, na=False)]
                 
-                if res_c.text.startswith("http"):
-                    st.session_state["link_pdf_v60"] = res_c.text.strip()
-                    placeholder_msg.success("¡Certificado localizado con éxito!")
+                if not match_c.empty:
+                    id_carp = str(match_c.iloc[0]['IDCARPETA']).strip()
+                    
+                    # Aseguramos que el mapa de meses numéricos tenga formato correcto (ej: "11" para NOV)
+                    mes_num = str(MAPA_MESES_NUM[mes_c]).zfill(2) 
+                    nom_archivo = f"Certificado.{mes_num}{anio_sel}.pdf"
+                    
+                    placeholder_msg.info(f"Buscando archivo: {nom_archivo}...")
+                    
+                    try:
+                        res_c = requests.get(URL_APPS_SCRIPT, params={"nombre": nom_archivo, "carpeta": id_carp}, timeout=10)
+                        
+                        if res_c.text.startswith("http"):
+                            st.session_state["link_pdf_v60"] = res_c.text.strip()
+                            placeholder_msg.success("¡Certificado localizado con éxito!")
+                        else:
+                            placeholder_msg.error("No se encontró el archivo físico en Google Drive con ese nombre.")
+                            if "link_pdf_v60" in st.session_state:
+                                del st.session_state["link_pdf_v60"]
+                    except Exception as e:
+                        placeholder_msg.error(f"Error de conexión al buscar el certificado: {str(e)}")
                 else:
-                    placeholder_msg.error("No se encontró el archivo físico en Google Drive con ese nombre.")
-                    if "link_pdf_v60" in st.session_state:
-                        del st.session_state["link_pdf_v60"]
-            except Exception as e:
-                placeholder_msg.error(f"Error de conexión al buscar el certificado: {str(e)}")
-        else:
-            placeholder_msg.error("No se encontró el identificador de la empresa en la base de datos.")
+                    placeholder_msg.error("No se encontró el identificador de la empresa en la base de datos.")
 
-    # Si el link ya existe en la sesión actual, mostramos el botón de descarga directa
-    if "link_pdf_v60" in st.session_state:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.link_button("📥 Descargar Certificado", st.session_state["link_pdf_v60"], use_container_width=True, type="primary")
-
+            # Si el link ya existe en la sesión actual, mostramos el botón de descarga directa
+            if "link_pdf_v60" in st.session_state:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.link_button("📥 Descargar Certificado", st.session_state["link_pdf_v60"], use_container_width=True, type="primary")
 # ==============================================================================
 # 6. TAB 2: KPIS EMPRESAS (INTELIGENCIA BASADA EN LOG Y LIBROS)
 # ==============================================================================
